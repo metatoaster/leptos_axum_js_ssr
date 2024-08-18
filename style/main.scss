@@ -1,3 +1,90 @@
-body {
+@use '../node_modules/@highlightjs/cdn-assets/styles/github.min.css';
+
+html, body {
+    margin: 0;
+    padding: 0;
     font-family: sans-serif;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body {
+    display: flex;
+    flex-flow: row nowrap;
+}
+
+nav {
+    min-width: 14em;
+    height: 100vh;
+    background: #f7f7f7;
+    counter-reset: css-counter 0;
+    list-style-type: none;
+    list-style-position: outside;
+}
+
+nav a {
+    display: block;
+    padding: 0.5em 2em;
+    color: #000;
+    text-decoration: none;
+}
+
+nav a[aria-current="page"] {
+    background-color: #e0e0e0;
+}
+
+nav a small {
+    display: block;
+}
+
+nav a.example::before {
+    counter-increment: css-counter 1;
+    content: counter(css-counter) ". ";
+}
+
+main {
+    width: 100%;
+    overflow: auto;
+}
+
+main article {
+    max-width: 60em;
+    margin: 0 1em;
+    padding: 0 1em;
+}
+
+main p, main li {
+    line-height: 1.3em;
+}
+
+main ol, main ul {
+    padding-left: 2em;
+}
+
+h2>code, p>code, li>code {
+    background: #e8e8e8;
+    border-radius: 3px;
+    padding: 2px;
+}
+
+li pre code {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+#code-demo {
+    overflow-x: auto;
+}
+
+#code-demo table {
+    width: 50em;
+    margin: auto;
+}
+
+#code-demo table td {
+    vertical-align: top;
+}
+
+#code-demo table code {
+    display: block;
+    padding: 1em;
 }

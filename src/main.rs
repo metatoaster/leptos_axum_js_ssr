@@ -1,10 +1,11 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::Router;
+    use axum::{http::header, response::IntoResponse, routing::get, Router};
     use axum_js_ssr::app::*;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tower_http::services::ServeFile;
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
@@ -12,7 +13,21 @@ async fn main() {
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
 
+    async fn dummy_js() -> impl IntoResponse {
+        (
+            [(header::CONTENT_TYPE, "text/javascript")],
+            "console.log('dummy.js loaded');\n",
+        )
+    }
+
     let app = Router::new()
+        .route_service(
+            "/highlight.min.js",
+            ServeFile::new(
+                "node_modules/@highlightjs/cdn-assets/highlight.min.js",
+            ),
+        )
+        .route("/dummy.js", get(dummy_js))
         .leptos_routes(&leptos_options, routes, {
             let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())
