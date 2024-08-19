@@ -25,3 +25,5 @@ fn area(width: u32, height: u32) -> u32 {
     width * height
 }
 "#;
+
+pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";

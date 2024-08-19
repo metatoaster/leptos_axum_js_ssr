@@ -57,7 +57,7 @@ main p, main li {
     line-height: 1.3em;
 }
 
-main li pre code {
+main li pre code, main div pre code {
     display: block;
     line-height: normal;
 }
@@ -72,7 +72,7 @@ h2>code, p>code, li>code {
     padding: 2px;
 }
 
-li pre code {
+li pre code, div pre code {
     margin: 0 !important;
     padding: 0 !important;
 }

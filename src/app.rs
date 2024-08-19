@@ -1,4 +1,4 @@
-use crate::{api::fetch_code, consts::CH03_05A};
+use crate::{api::fetch_code, consts::{CH03_05A, LEPTOS_HYDRATED}};
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, *};
 use leptos_router::{
@@ -46,6 +46,8 @@ pub fn App() -> impl IntoView {
                     <small>"... correcting placement"</small></A>
                 <A attr:class="example" href="/naive-fallback">"Leptos "<code>"<Script>"</code>
                     <small>"... with fallback"</small></A>
+                <A attr:class="example" href="/custom-event">"Hydrated Event"
+                    <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code></small></A>
             </nav>
             <main>
                 <article>
@@ -58,6 +60,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("naive-fallback") view=|| view! {
                             <NaiveEvent hook=true fallback=true/>
                         } ssr/>
+                        <Route path=path!("custom-event") view=CustomEvent ssr/>
                     </FlatRoutes>
                 </article>
             </main>
@@ -93,7 +96,7 @@ fn HomePage() -> impl IntoView {
 
 #[derive(Clone, Debug)]
 struct CodeDemoHook {
-    js_hook: &'static str,
+    js_hook: String,
 }
 
 #[component]
@@ -200,7 +203,7 @@ if (window.hljs) {
 }";
     let js_hook = if fallback { render_call } else { render_hook };
     let explanation = if hook {
-        provide_context(CodeDemoHook { js_hook });
+        provide_context(CodeDemoHook { js_hook: js_hook.to_string() });
         if fallback {
             view! {
                 <ol>
@@ -297,6 +300,81 @@ if (window.hljs) {
             Is "<code>"wasm-bindgen"</code>" the only answer?  What if the goal is to incorporate external
             scripts that change often and thus can't easily have bindings built?  Follow onto the next
             examples to solve some of this, at the very least prevent the panic during hydration.
+        "</p>
+    }
+}
+
+#[component]
+fn CustomEvent() -> impl IntoView {
+    let js_hook = format!("\
+var events = [];
+if (!window.hljs) {{
+    console.log('pushing listener for hljs load');
+    events.push(new Promise((r) =>
+        document.querySelector('#hljs-src').addEventListener('load', r, false)));
+}}
+if (!window.{LEPTOS_HYDRATED}) {{
+    console.log('pushing listener for leptos hydration');
+    events.push(new Promise((r) => document.addEventListener('{LEPTOS_HYDRATED}', r, false)));
+}}
+Promise.all(events).then(() => {{
+    console.log(`${{events.length}} events have been dispatched; now calling highlightAll()`);
+    hljs.highlightAll();
+}});
+");
+    provide_context(CodeDemoHook { js_hook: js_hook.clone() });
+    // FIXME Seems like <Script> require a text node, otherwise hydration error from marker mismatch
+    view! {
+        <h2>"Have Leptos dispatch an event when body is hydrated"</h2>
+        <CodeDemo/>
+        <Script id="hljs-src" async_="true" src="/highlight.min.js">""</Script>
+        <p>"
+            So if using events fixes problems with timing issues, couldn't Leptos provide an event to signal
+            that the body is hydrated?  Actually, yes, since a typical Leptos application provide a "<code>
+            "fn hydate()"</code>" in its "<code>"lib.rs"</code>", that can be modified to provide this very
+            thing.  All that it takes is something like the following placed after
+        "</p>
+        <div><pre><code class="language-rust">{format!(
+            r#"
+#[cfg(feature = "hydrate")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn hydrate() {{
+    use app::App;
+    // ... other hooks omitted
+    leptos::mount::hydrate_body(App);
+
+    // Now hydrate_body is done, provide ways to inform that
+    let window = web_sys::window()
+        .expect("window must exist in this context");
+    // first set a flag to signal that hydration has happened and other
+    // JavaScript code may just run without waiting for the event that
+    // is just about to be dispatched, as the event is only a one-time
+    // deal but this lives on as a variable that can be checked.
+    js_sys::Reflect::set(
+        &window,
+        &wasm_bindgen::JsValue::from_str({LEPTOS_HYDRATED:?}),
+        &wasm_bindgen::JsValue::TRUE,
+    ).expect("error setting hydrated status");
+    // Then dispatch the event for all the listeners that were added.
+    let event = web_sys::Event::new({LEPTOS_HYDRATED:?}")
+        .expect("error creating hydrated event");
+    let document = window.document()
+        .expect("document is missing");
+    document.dispatch_event(&event)
+        .expect("error dispatching hydrated event");
+}}"#
+        )}</code></pre></div>
+        <p>"
+            With the notification that hydration is completed, the following JavaScript code may be called
+            inside "<code>"Suspense"</code>" block (in this live example, it's triggered by providing the
+            following code via a "<code>"provide_context"</code>" which the code rendering component will then
+            use within a "<code>"Suspend"</code>"):
+        "</p>
+        <div><pre><code class="language-javascript">{js_hook}</code></pre></div>
+        <p>"
+            No matter what latency there is, whatever the order did the API calls are done, this setup ensures
+            the the code gets highlighted only after hydration is done and also after relevant delayed content
+            are rendered from API calls.
         "</p>
     }
 }
