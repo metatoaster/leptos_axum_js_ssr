@@ -57,6 +57,11 @@ main p, main li {
     line-height: 1.3em;
 }
 
+main li pre code {
+    display: block;
+    line-height: normal;
+}
+
 main ol, main ul {
     padding-left: 2em;
 }
