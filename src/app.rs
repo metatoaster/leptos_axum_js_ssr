@@ -48,6 +48,10 @@ pub fn App() -> impl IntoView {
                     <small>"... with fallback"</small></A>
                 <A attr:class="example" href="/custom-event">"Hydrated Event"
                     <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code></small></A>
+                <A attr:class="example" href="/wasm-bindgen-naive">"Using "<code>"wasm-bindgen"</code>
+                    <small>"naively to start with"</small></A>
+                <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
+                    <small>"with events"</small></A>
             </nav>
             <main>
                 <article>
@@ -61,6 +65,8 @@ pub fn App() -> impl IntoView {
                             <NaiveEvent hook=true fallback=true/>
                         } ssr/>
                         <Route path=path!("custom-event") view=CustomEvent ssr/>
+                        <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
+                        <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
                     </FlatRoutes>
                 </article>
             </main>
@@ -375,6 +381,183 @@ pub fn hydrate() {{
             No matter what latency there is, whatever the order did the API calls are done, this setup ensures
             the the code gets highlighted only after hydration is done and also after relevant delayed content
             are rendered from API calls.
+        "</p>
+    }
+}
+
+enum WasmDemo {
+    Naive,
+    ReadyEvent,  // Leptos on_mount event, but 0.7 doesn't have it? invent our own?
+}
+// InnerHtml is a completely different strategy
+
+#[component]
+fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
+    let code = Resource::new(|| (), |_| fetch_code());
+    let suspense_choice = match mode {
+        WasmDemo::Naive => view! {
+            <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+                move || Suspend::new(async move {
+                    view! {
+                        <pre><code>{code.await}</code></pre>
+                        {
+                            #[cfg(not(feature = "ssr"))]
+                            {
+                                use crate::hljs::highlight_all;
+                                leptos::logging::log!("calling highlight_all");
+                                highlight_all();
+                            }
+                        }
+                    }
+                })
+            }</Suspense>
+        }.into_any(),
+        WasmDemo::ReadyEvent => view! {
+            <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+                move || Suspend::new(async move {
+                    view! {
+                        <pre><code>{code.await}</code></pre>
+                        {
+                            #[cfg(not(feature = "ssr"))]
+                            {
+                                use crate::hljs;
+                                use wasm_bindgen::{closure::Closure, JsCast};
+
+                                // Dealing with event listeners may be easier when using `leptos_use`, but
+                                // this is a base example for Leptos, so set all this up with the underlying
+                                // wasm bindings...
+                                let document = web_sys::window()
+                                    .expect("window is missing")
+                                    .document()
+                                    .expect("document is missing");
+
+                                // Rules relating to hydration still applies when loading via SSR!  Changing
+                                // the dom before hydration is done is still problematic, as the same issues
+                                // such as the panic as demonstrated in the relevant JavaScript demo.
+                                let hydrate_listener = Closure::<dyn Fn(_)>::new(move |_: web_sys::Event| {
+                                    leptos::logging::log!("wasm hydration_listener highlighting");
+                                    hljs::highlight_all();
+                                }).into_js_value();
+                                document.add_event_listener_with_callback(
+                                    LEPTOS_HYDRATED,
+                                    hydrate_listener.as_ref().unchecked_ref(),
+                                ).expect("failed to add event listener to document");
+
+                                // For CSR rendering, wait for the hljs_hook which will be fired when this
+                                // suspended bit is fully mounted onto the DOM, and this is done using a
+                                // JavaScript shim described below.
+                                let csr_listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
+                                    leptos::logging::log!("wasm csr_listener highlighting");
+                                    hljs::highlight_all();
+                                }).into_js_value();
+                                let options = web_sys::AddEventListenerOptions::new();
+                                options.set_once(true);
+                                // FIXME this actually is added as a unique function so after a quick re-
+                                // render will re-add this as a new listener, which causes a double call
+                                // to highlightAll.  To fix this there needs to be a way to put the listener
+                                // and keep it unique, but this looks to be rather annoying to do...
+                                document.add_event_listener_with_callback_and_add_event_listener_options(
+                                    "hljs_hook",
+                                    csr_listener.as_ref().unchecked_ref(),
+                                    &options,
+                                ).expect("failed to add event listener to document");
+                                leptos::logging::log!("wasm csr_listener listener added");
+
+                                // Dispatch the event when this view is finally mounted onto the DOM.
+                                // Cheat a bit here by putting this in a script tag which will guarantee to
+                                // run in the JavaScript context since there's currently no way to do this
+                                // (as of leptos-0.7.0-beta2).
+                                // so instead of this...
+                                // let event = web_sys::Event::new("hljs_hook")
+                                //     .expect("error creating hljs_hook event");
+                                // document.dispatch_event(&event)
+                                //     .expect("error dispatching hydrated event");
+                                // ... just do this.
+                                view! {
+                                    <script>"document.dispatchEvent(new Event('hljs_hook'))"</script>
+                                }
+                            }
+                            #[cfg(feature = "ssr")]
+                            {
+                                // since the CSR returns a view with a script containing some static str,
+                                // to keep things consistent for hydration to happen correctly, the SSR
+                                // version will have to keep up...
+                                view! {
+                                    <script>""</script>
+                                }
+                            }
+                        }
+                    }
+                })
+            }</Suspense>
+        }.into_any(),
+    };
+    view! {
+        <p>"
+            The syntax highlighting shown in the table below is done by invoking "<code>"hljs.highlightAll()"
+            </code>" via the binding generated using "<code>"wasm-bindgen"</code>" - thus the ES version of "
+            <code>"highlight.js"</code>" is loaded by the output bundle generated by Leptos under this set of
+            demonstrations. However, things may still not work as expected, with the explanation on what is
+            being demonstrated follows after the following code example table.
+        "</p>
+        <div id="code-demo">
+            <table>
+                <thead>
+                    <tr>
+                        <th>"Inline code block (part of this component)"</th>
+                        <th>"Dynamic code block (loaded via server fn)"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><pre><code>{CH03_05A}</code></pre></td>
+                        <td>{suspense_choice}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+#[component]
+fn WasmBindgenNaive() -> impl IntoView {
+    view! {
+        <h2>"Will "<code>"wasm-bindgen"</code>" magically avoid all the problems?"</h2>
+        <CodeDemoWasm mode=WasmDemo::Naive/>
+        <p>"
+            Well, clearly not, because this demo behaves almost exactly like the very first naive example,
+            where only the inline code block will highlight under CSR and hydration is broken when trying to
+            load this under SSR.  This is the consequence of porting the logic naively.  In this example, the
+            calling of "<code>"hljs::highlight_all()"</code>" is located inside a "<code>"Suspend"</code>"
+            immediately after the code block, but it doesn't mean the execution will apply to that because it
+            hasn't been mounted onto the DOM itself for "<code>"highlight.js"</code>" to process.
+        "</p>
+        <p>"
+            Similarly, SSR will also error under a similar mechanism, which again breaks hydration because the
+            code is run on the dehydrated nodes before hydration has happened.  Using event listeners via
+            "<code>"web_sys"</code>" in a similar manner like the JavaScript based solutions shown previously
+            can fix this, but there are other approaches also.
+        "</p>
+    }
+}
+
+#[component]
+fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
+    view! {
+        <h2>"Using "<code>"wasm-bindgen"</code>" with proper consideration"</h2>
+        <CodeDemoWasm mode=WasmDemo::ReadyEvent/>
+        <p>"
+            Well, this works a lot better, under SSR the code is highlighted only after hydration to avoid the
+            panic, and under CSR a new event is created for listening and responding to for the rendering to
+            happen only after the suspended node is populated onto the DOM.  There is a bit of a kink with the
+            way this is implemented, but it largely works.
+        "</p>
+        <p>"
+            Given that multiple frameworks that will manipulate the DOM in their own and assume they are the
+            only source of truth is a problem - this being demonstrated by Leptos assuming that nothing else
+            would change the DOM for hydration.  So, if it is possible to use the JavaScript library in a way
+            that wouldn't cause unexpected DOM changes, then that can be a way to avoid needing all these
+            additional event listeners for working around the panics.
         "</p>
     }
 }
