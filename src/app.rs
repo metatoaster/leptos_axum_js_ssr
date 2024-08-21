@@ -568,18 +568,38 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
 #[allow(unused_variables)]  // lang is unused for SSR
 #[component]
 fn CodeInner(code: String, lang: String) -> impl IntoView {
+    let (inner, set_inner) = signal(String::new());
     #[cfg(feature = "ssr")]
-    let inner = {
-        leptos::logging::log!("ran html_escape::encode_text");
-        Some(html_escape::encode_text(&code).into_owned())
+    {
+        let result = Some(html_escape::encode_text(&code).into_owned());
+        leptos::logging::log!("ran html_escape::encode_text: {result:?}");
+        result.map(|r| set_inner.set(r));
     };
     #[cfg(not(feature = "ssr"))]
-    let inner = {
+    {
+        use wasm_bindgen::{closure::Closure, JsCast};
         use crate::hljs;
-        leptos::logging::log!("ran hljs::highlight");
-        hljs::highlight(code, lang)
+        let result = hljs::highlight(code, lang);
+        leptos::logging::log!("ran hljs::highlight: {result:?}");
+        result.map(|r| set_inner.set(r));
+        // However under hydration for SSR, somehow nothing changes despite the SSR result is different to the
+        // CSR rendering, so a re-rendering fails to happen.  One way to work around this issue is to also
+        // leverage the hydration event, and use that to trigger a re-render by making a minimal change to the
+        // result (by pushing a html comment).  It is no longer the same string but in terms of appearance and
+        // the rendered output it is identical.
+        let hydrate_listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
+            leptos::logging::log!("wasm hydration_listener mutating inner_html to force rerender");
+            set_inner.update(|s: &mut String| s.push_str("<!-- -->"))
+        }).into_js_value();
+        web_sys::window()
+            .expect("window is missing")
+            .document()
+            .expect("document is missing")
+            .add_event_listener_with_callback(
+            LEPTOS_HYDRATED,
+            hydrate_listener.as_ref().unchecked_ref(),
+        ).expect("failed to add event listener to document");
     };
-    leptos::logging::log!("inner = {inner:?}");
 
     view! {
         <pre><code inner_html=inner></code></pre>
@@ -667,6 +687,15 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
             feature gating would be managed at the library level and the component would simply call the
             function directly.  This would result in the SSR/CSR being isomorphic, even with JavaScript
             disabled on the client.
+        "</p>
+        <p>"
+            ... Well, at least that's the story, but in practice there is a bit of a kink during hydration.
+            On hydration, the CSR rendering kicks in and calls "<code>"hljs::highlight"</code>", producing a
+            different output that should have triggered the re-rendering, but for some reason the existing
+            output is used regardless.  So again the hydrate signal is used as a cheat to modify inner_html to
+            include an empty html comment to signal that some content has changed in order to force the
+            re-render for hydration.  Anyway, this is the story as of "<code>"leptos-0.7.0-beta2" </code>",
+            and the author of this example is unsure about whether this is the expected behavior or not.
         "</p>
     }
 }
