@@ -10,6 +10,8 @@ crate-type = ["cdylib", "rlib"]
 axum = { version = "0.7.5", optional = true }
 console_error_panic_hook = "0.1.7"
 console_log = "1.0"
+gloo-utils = "0.2.0"
+html-escape = "0.2.13"
 js-sys = { version = "0.3.69", optional = true }
 lazy_static = "1.5"
 leptos = { version = "0.7.0-beta2", features = [ "hydration" ] }

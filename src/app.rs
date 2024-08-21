@@ -52,6 +52,8 @@ pub fn App() -> impl IntoView {
                     <small>"naively to start with"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
                     <small>"with events"</small></A>
+                <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
+                    <small>"w/o DOM manipulation"</small></A>
             </nav>
             <main>
                 <article>
@@ -67,6 +69,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("custom-event") view=CustomEvent ssr/>
                         <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
                         <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
+                        <Route path=path!("wasm-bindgen-direct") view=WasmBindgenDirect />
                     </FlatRoutes>
                 </article>
             </main>
@@ -558,6 +561,112 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
             would change the DOM for hydration.  So, if it is possible to use the JavaScript library in a way
             that wouldn't cause unexpected DOM changes, then that can be a way to avoid needing all these
             additional event listeners for working around the panics.
+        "</p>
+    }
+}
+
+#[allow(unused_variables)]  // lang is unused for SSR
+#[component]
+fn CodeInner(code: String, lang: String) -> impl IntoView {
+    #[cfg(feature = "ssr")]
+    let inner = {
+        leptos::logging::log!("ran html_escape::encode_text");
+        Some(html_escape::encode_text(&code).into_owned())
+    };
+    #[cfg(not(feature = "ssr"))]
+    let inner = {
+        use crate::hljs;
+        leptos::logging::log!("ran hljs::highlight");
+        hljs::highlight(code, lang)
+    };
+    leptos::logging::log!("inner = {inner:?}");
+
+    view! {
+        <pre><code inner_html=inner></code></pre>
+    }
+}
+
+#[component]
+fn CodeDemoWasmInner() -> impl IntoView {
+    let code = Resource::new(|| (), |_| fetch_code());
+    let code_view = move || {
+        Suspend::new(async move {
+            code.await.map(|code| view! {
+                <CodeInner code=code lang="rust".to_string()/>
+            })
+        })
+    };
+    view! {
+        <p>"
+            The following code examples are assigned via "<code>"inner_html"</code>" after processing through
+            the relevant/available API call depending on SSR/CSR, without triggering any events or DOM
+            manipulation outside of Leptos.
+        "</p>
+        <div id="code-demo">
+            <table>
+                <thead>
+                    <tr>
+                        <th>"Inline code block (part of this component)"</th>
+                        <th>"Dynamic code block (loaded via server fn)"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><CodeInner code=CH03_05A.to_string() lang="rust".to_string()/></td>
+                        <td>
+                            <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>
+                                {code_view}
+                            </Suspense>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+#[component]
+fn WasmBindgenDirect() -> impl IntoView {
+    let code = r#"#[component]
+fn CodeInner(code: String, lang: String) -> impl IntoView {
+    #[cfg(feature = "ssr")]
+    let inner = Some(html_escape::encode_text(&code).into_owned());
+    #[cfg(not(feature = "ssr"))]
+    let inner = crate::hljs::highlight(code, lang);
+    view! {
+        <pre><code inner_html=inner></code></pre>
+    }
+}"
+
+// Simply use the above component in a view like so:
+//
+// view! { <CodeInner code lang/> }
+"#.to_string();
+    let lang = "rust".to_string();
+
+    view! {
+        <h2>"If possible, avoid DOM manipulation outside of Leptos"</h2>
+        <CodeDemoWasmInner/>
+        <p>"
+            Whenever possible, look for a way to use the target JavaScript library to produce the desired
+            markup without going through a global DOM manipulation can end up being much more straight-forward
+            to write.  More so if there is a server side counterpart, which means the use of the module don't
+            need the disambiguation within the component itself.  A simplified version of a component that
+            will render a code block that gets highlighted under CSR (and plain text under SSR) may look
+            something like this:
+        "</p>
+        <CodeInner code lang/>
+        <p>"
+            In the above example, no additional "<code>"<script>"</code>" tag, event listeners, post-\
+            hydration processing or other DOM manipuation are needed, as the JavaScript function that converts
+            a string to highlighted markup can be made from Rust through the "<code>"wasm-bindgen"</code>"
+            bindngs under CSR.  However, as the highlight functionality isn't available under SSR (for this
+            iteration) and so it's simply processed using "<code>"html_escape"</code>".  Given the difference
+            between CSR and SSR, the cases are disambiguated via the use of "<code>"#[cfg(feature = ...)]"
+            </code>" for the desired behavior.  If there is a corresponding API for highlighting SSR, this
+            feature gating would be managed at the library level and the component would simply call the
+            function directly.  This would result in the SSR/CSR being isomorphic, even with JavaScript
+            disabled on the client.
         "</p>
     }
 }
