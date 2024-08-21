@@ -54,6 +54,8 @@ pub fn App() -> impl IntoView {
                     <small>"with events"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
                     <small>"w/o DOM manipulation"</small></A>
+                <A attr:class="example" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
+                    <small>"as above, with effects"</small></A>
             </nav>
             <main>
                 <article>
@@ -70,20 +72,13 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
                         <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
                         <Route path=path!("wasm-bindgen-direct") view=WasmBindgenDirect />
+                        <Route path=path!("wasm-bindgen-direct-fixed") view=WasmBindgenDirectFixed />
                     </FlatRoutes>
                 </article>
             </main>
         </Router>
     }
 }
-
-// TODO
-// call highlight.js highlightAll naively (doesn't work, explain how/why)
-// - static code (should work if navigated into)
-// - code loaded via server function (should fail because there was delay loading)
-// - all should cause hydration to fail
-// call highlight.js highlightAll via events
-// wrap highlight.js via wasm-bindgen, call highlight(code, {...}) directly
 
 #[component]
 fn HomePage() -> impl IntoView {
@@ -392,7 +387,6 @@ enum WasmDemo {
     Naive,
     ReadyEvent,  // Leptos on_mount event, but 0.7 doesn't have it? invent our own?
 }
-// InnerHtml is a completely different strategy
 
 #[component]
 fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
@@ -565,44 +559,42 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
     }
 }
 
+#[derive(Clone)]
+struct InnerEffect;
+
 #[allow(unused_variables)]  // lang is unused for SSR
 #[component]
 fn CodeInner(code: String, lang: String) -> impl IntoView {
-    let (inner, set_inner) = signal(String::new());
-    #[cfg(feature = "ssr")]
-    {
-        let result = Some(html_escape::encode_text(&code).into_owned());
-        leptos::logging::log!("ran html_escape::encode_text: {result:?}");
-        result.map(|r| set_inner.set(r));
-    };
-    #[cfg(not(feature = "ssr"))]
-    {
-        use wasm_bindgen::{closure::Closure, JsCast};
-        use crate::hljs;
-        let result = hljs::highlight(code, lang);
-        leptos::logging::log!("ran hljs::highlight: {result:?}");
-        result.map(|r| set_inner.set(r));
-        // However under hydration for SSR, somehow nothing changes despite the SSR result is different to the
-        // CSR rendering, so a re-rendering fails to happen.  One way to work around this issue is to also
-        // leverage the hydration event, and use that to trigger a re-render by making a minimal change to the
-        // result (by pushing a html comment).  It is no longer the same string but in terms of appearance and
-        // the rendered output it is identical.
-        let hydrate_listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
-            leptos::logging::log!("wasm hydration_listener mutating inner_html to force rerender");
-            set_inner.update(|s: &mut String| s.push_str("<!-- -->"))
-        }).into_js_value();
-        web_sys::window()
-            .expect("window is missing")
-            .document()
-            .expect("document is missing")
-            .add_event_listener_with_callback(
-            LEPTOS_HYDRATED,
-            hydrate_listener.as_ref().unchecked_ref(),
-        ).expect("failed to add event listener to document");
-    };
-
-    view! {
-        <pre><code inner_html=inner></code></pre>
+    if use_context::<InnerEffect>().is_none() {
+        #[cfg(feature = "ssr")]
+        let inner = Some(html_escape::encode_text(&code).into_owned());
+        #[cfg(not(feature = "ssr"))]
+        let inner = {
+            let inner = crate::hljs::highlight(code, lang);
+            leptos::logging::log!("about to populate inner_html with: {inner:?}");
+            inner
+        };
+        view! {
+            <pre><code inner_html=inner></code></pre>
+        }.into_any()
+    } else {
+        let (inner, set_inner) = signal(String::new());
+        #[cfg(feature = "ssr")]
+        {
+            let result = Some(html_escape::encode_text(&code).into_owned());
+            result.map(|r| set_inner.set(r));
+        };
+        #[cfg(not(feature = "ssr"))]
+        {
+            let result = crate::hljs::highlight(code, lang);
+            Effect::new(move |_| {
+                leptos::logging::log!("running hljs::highlight inside an effect");
+                result.clone().map(|r| set_inner.set(r));
+            });
+        };
+        view! {
+            <pre><code inner_html=inner></code></pre>
+        }.into_any()
     }
 }
 
@@ -619,8 +611,8 @@ fn CodeDemoWasmInner() -> impl IntoView {
     view! {
         <p>"
             The following code examples are assigned via "<code>"inner_html"</code>" after processing through
-            the relevant/available API call depending on SSR/CSR, without triggering any events or DOM
-            manipulation outside of Leptos.
+            the relevant/available API call depending on SSR/CSR, without using any "<code>"web_sys"</code>"
+            events or DOM manipulation outside of Leptos.
         "</p>
         <div id="code-demo">
             <table>
@@ -660,8 +652,7 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
 
 // Simply use the above component in a view like so:
 //
-// view! { <CodeInner code lang/> }
-"#.to_string();
+// view! { <CodeInner code lang/> }"#.to_string();
     let lang = "rust".to_string();
 
     view! {
@@ -692,10 +683,64 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
             ... Well, at least that's the story, but in practice there is a bit of a kink during hydration.
             On hydration, the CSR rendering kicks in and calls "<code>"hljs::highlight"</code>", producing a
             different output that should have triggered the re-rendering, but for some reason the existing
-            output is used regardless.  So again the hydrate signal is used as a cheat to modify inner_html to
-            include an empty html comment to signal that some content has changed in order to force the
-            re-render for hydration.  Anyway, this is the story as of "<code>"leptos-0.7.0-beta2" </code>",
-            and the author of this example is unsure about whether this is the expected behavior or not.
+            output is used regardless.  So in this example you will find that the highlighting not working as
+            expected during hydration, but this can easily be fixed by using effects.
+        "</p>
+    }
+}
+
+#[component]
+fn WasmBindgenDirectFixed() -> impl IntoView {
+    let code = r#"#[component]
+fn CodeInner(code: String, lang: String) -> impl IntoView {
+    let (inner, set_inner) = signal(String::new());
+    #[cfg(feature = "ssr")]
+    {
+        set_inner.set(html_escape::encode_text(&code).into_owned());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        let result = crate::hljs::highlight(code, lang);
+        Effect::new(move |_| {
+            result.clone().map(|r| set_inner.set(r));
+        });
+    }
+    view! {
+        <pre><code inner_html=inner></code></pre>
+    }
+}"#.to_string();
+    let lang = "rust".to_string();
+    provide_context(InnerEffect);
+
+    view! {
+        <h2>"Corrected example using effects."</h2>
+        <CodeDemoWasmInner/>
+        <p>"
+            Whenever possible, look for a way to use the target JavaScript library to produce the desired
+            markup without going through a global DOM manipulation can end up being much more straight-forward
+            to write.  More so if there is a server side counterpart, which means the use of the module don't
+            need the disambiguation within the component itself.  A simplified version of a component that
+            will render a code block that gets highlighted under CSR (and plain text under SSR) may look
+            something like this:
+        "</p>
+        <CodeInner code lang/>
+        <p>"
+            In the above example, no additional "<code>"<script>"</code>" tag, event listeners, post-\
+            hydration processing or other DOM manipuation are needed, as the JavaScript function that converts
+            a string to highlighted markup can be made from Rust through the "<code>"wasm-bindgen"</code>"
+            bindngs under CSR.  However, as the highlight functionality isn't available under SSR (for this
+            iteration) and so it's simply processed using "<code>"html_escape"</code>".  Given the difference
+            between CSR and SSR, the cases are disambiguated via the use of "<code>"#[cfg(feature = ...)]"
+            </code>" for the desired behavior.  If there is a corresponding API for highlighting SSR, this
+            feature gating would be managed at the library level and the component would simply call the
+            function directly.  This would result in the SSR/CSR being isomorphic, even with JavaScript
+            disabled on the client.
+        "</p>
+        <p>"
+            With the use of effects, the expected rendered result under hydration and normal CSR will be the
+            highlighted version as expected.  As part of trial and error, the author tried to workaround this
+            issue by using events via "<code>"web_sys"</code>" hack around signal, but again, using effects
+            like so is a lot better.
         "</p>
     }
 }
