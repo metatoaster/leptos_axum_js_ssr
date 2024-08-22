@@ -826,9 +826,12 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
         <p>"
             ... Well, at least that's the story, but in practice there is a bit of a kink during hydration.
             On hydration, the CSR rendering kicks in and calls "<code>"hljs::highlight"</code>", producing a
-            different output that should have triggered the re-rendering, but for some reason the existing
-            output is used regardless.  So in this example you will find that the highlighting not working as
-            expected during hydration, but this can easily be fixed by using effects.
+            different output that should have triggered the re-rendering.  As hydration assumes the HTML
+            rendered on the server is the content, a change to render something else is not something it
+            anticipates for performance reasons is it avoids unnecessary work, meaning when during hydration
+            the syntax highlighting will not be shown as expected.  Fortunately, this is where effects comes
+            in as it provides the intent to do something on the client side, and the next example will show
+            how this should be done.
         "</p>
     }
 }
