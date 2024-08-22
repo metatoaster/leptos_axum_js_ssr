@@ -76,8 +76,8 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
                         <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
                         <Route path=path!("wasm-bindgen-effect") view=WasmBindgenEffect ssr/>
-                        <Route path=path!("wasm-bindgen-direct") view=WasmBindgenDirect />
-                        <Route path=path!("wasm-bindgen-direct-fixed") view=WasmBindgenDirectFixed />
+                        <Route path=path!("wasm-bindgen-direct") view=WasmBindgenDirect ssr/>
+                        <Route path=path!("wasm-bindgen-direct-fixed") view=WasmBindgenDirectFixed ssr/>
                     </FlatRoutes>
                 </article>
             </main>
