@@ -1,7 +1,6 @@
 pub mod api;
 pub mod app;
 pub mod consts;
-#[cfg(not(feature = "ssr"))]
 pub mod hljs;
 
 #[cfg(feature = "hydrate")]

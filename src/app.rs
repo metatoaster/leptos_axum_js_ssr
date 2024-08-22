@@ -52,6 +52,8 @@ pub fn App() -> impl IntoView {
                     <small>"naively to start with"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
                     <small>"with events"</small></A>
+                <A attr:class="example" href="/wasm-bindgen-effect">"Using "<code>"wasm-bindgen"</code>
+                    <small>"DOM manipulation with effects"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
                     <small>"w/o DOM manipulation"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
@@ -71,6 +73,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("custom-event") view=CustomEvent ssr/>
                         <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
                         <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
+                        <Route path=path!("wasm-bindgen-effect") view=WasmBindgenEffect ssr/>
                         <Route path=path!("wasm-bindgen-direct") view=WasmBindgenDirect />
                         <Route path=path!("wasm-bindgen-direct-fixed") view=WasmBindgenDirectFixed />
                     </FlatRoutes>
@@ -385,7 +388,8 @@ pub fn hydrate() {{
 
 enum WasmDemo {
     Naive,
-    ReadyEvent,  // Leptos on_mount event, but 0.7 doesn't have it? invent our own?
+    ReadyEvent,
+    RequestAnimationFrame,
 }
 
 #[component]
@@ -488,6 +492,23 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                 })
             }</Suspense>
         }.into_any(),
+        WasmDemo::RequestAnimationFrame => view! {
+            <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+                move || Suspend::new(async move {
+                    Effect::new(move |_| {
+                        request_animation_frame(move || {
+                            leptos::logging::log!("request_animation_frame invoking hljs::highlight_all");
+                            // under SSR this is an noop, but it wouldn't be called under there anyway because
+                            // it isn't the isomorphic version, i.e. Effect::new_isomorphic(...).
+                            crate::hljs::highlight_all();
+                        });
+                    });
+                    view! {
+                        <pre><code>{code.await}</code></pre>
+                    }
+                })
+            }</Suspense>
+        }.into_any(),
     };
     view! {
         <p>"
@@ -554,7 +575,56 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
             only source of truth is a problem - this being demonstrated by Leptos assuming that nothing else
             would change the DOM for hydration.  So, if it is possible to use the JavaScript library in a way
             that wouldn't cause unexpected DOM changes, then that can be a way to avoid needing all these
-            additional event listeners for working around the panics.
+            additional event listeners for working around the panics.  Not to mention this is a very simple
+            example with a single Suspense (or Transition), if there are multiple ones and they have different
+            resolutions, calling that potentially indiscriminate JavaScript DOM manipulation function may
+            require additional care.
+        "</p>
+    }
+}
+
+#[component]
+fn WasmBindgenEffect() -> impl IntoView {
+    let example = r#"
+<Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+    move || Suspend::new(async move {
+        Effect::new(move |_| {
+            request_animation_frame(move || {
+                leptos::logging::log!("request_animation_frame invoking hljs::highlight_all");
+                // under SSR this is an noop.
+                crate::hljs::highlight_all();
+            });
+        });
+        view! {
+            <pre><code>{code.await}</code></pre>
+        }
+    })
+}</Suspense>"#;
+
+    view! {
+        <h2>"Using "<code>"wasm-bindgen"</code>" with proper consideration, part 2"</h2>
+        <CodeDemoWasm mode=WasmDemo::RequestAnimationFrame/>
+        <p>"
+            This example simply uses "<code>"window.requestAnimationFrame()"</code>" (via the binding
+            available as "<code>"leptos::prelude::request_animation_frame"</code>") to delay the running of
+            the highlighting by a tick so that both the hydration would complete for SSR, and that it would
+            also delay highlighting call to after the suspend results are loaded onto the DOM.  The Suspend
+            for the dynamic code block is simply reduced to the following:
+        "</p>
+        <div><pre><code class="language-rust">{example}</code></pre></div>
+        <p>"
+            However, this method does have a drawback, which is that the inline code blocks will be processed
+            multiple times by this indiscriminate method.  We could go back to the previous example where we
+            use events to trigger for when the Suspend is resolved, but this will mean there needs to be some
+            way to co-ordinate and wait for all of them to ensure the JavaScript library is only invoked once
+            on the hydrated output.
+        "</p>
+        <p>"
+            Better alternatives should be used if they are found to be available.  For example, if the
+            JavaScript library to be integrated has a method that is less invasive call that works at a
+            smaller scope, that would be a much better alternative, and even better is to use them from
+            directly from Rust through "<code>"wasm-bindgen"</code>".  In the next couple examples we will see
+            how to put this into practice.
         "</p>
     }
 }
@@ -648,7 +718,7 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
     view! {
         <pre><code inner_html=inner></code></pre>
     }
-}"
+}
 
 // Simply use the above component in a view like so:
 //
