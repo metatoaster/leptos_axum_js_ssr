@@ -20,6 +20,7 @@ nav {
     counter-reset: css-counter 0;
     list-style-type: none;
     list-style-position: outside;
+    overflow: auto;
 }
 
 nav a {

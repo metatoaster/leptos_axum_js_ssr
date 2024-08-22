@@ -51,13 +51,15 @@ pub fn App() -> impl IntoView {
                 <A attr:class="example" href="/wasm-bindgen-naive">"Using "<code>"wasm-bindgen"</code>
                     <small>"naively to start with"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
-                    <small>"with events"</small></A>
+                    <small>"dancing with events"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-effect">"Using "<code>"wasm-bindgen"</code>
-                    <small>"DOM manipulation with effects"</small></A>
+                    <small>"lazily delay DOM manipulation"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
                     <small>"w/o DOM manipulation"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
                     <small>"as above, with effects"</small></A>
+                <a id="reset" href="/" target="_self">"Restart/Rehydrate"
+                    <small>"to make things work again"</small></a>
             </nav>
             <main>
                 <article>
@@ -97,6 +99,14 @@ fn HomePage() -> impl IntoView {
             pages to show what works and what does not, which hopefully clearly show the benefits and
             drawbacks of every single method.  Needless to say, JavaScript must be enabled, and having the
             browser's developer tools/console opened will show the problems as they happen.
+        "</p>
+        <p>"
+            Examples 1 to 5 are primarily JavaScript based, where the integration code is included as "<code>
+            "<script>"</code>" tags, with example 5 (final example of the group) being the only one that works
+            consistently without errors or panics.  Examples 6 to 10 uses "<code>"wasm-bindgen"</code>" to
+            call out to the JavaScript library from Rust, starting off with naive examples that mimics
+            JavaScript conventions, again with the final example of the group (example 10) being the fully
+            working version that embraces the use of Rust.
         "</p>
     }
 }
@@ -180,7 +190,9 @@ fn Naive() -> impl IntoView {
                 panics the wasm module.  This error may be visible using the browser's console, but overall
                 this pretty much breaks the page, so use the browser's navigation, hit back, and then refresh
                 (because the back action triggered a push state, and with hydration broken, the reactive
-                system is also broken, so yes the page is very much in a crashed state).
+                system is also broken, so yes the page is very much in a crashed state because all of the
+                reactive links don't work, use the "<a href="/" target="_self">"Restart/Rehydrate"</a>" link
+                to go back to home as the link is non-reactive).
             "</li>
             <li>"
                 Moreover, if you continue to use the browser's navigation system (without reloading here to
@@ -351,8 +363,7 @@ pub fn hydrate() {{
     leptos::mount::hydrate_body(App);
 
     // Now hydrate_body is done, provide ways to inform that
-    let window = web_sys::window()
-        .expect("window must exist in this context");
+    let window = leptos::prelude::window();
     // first set a flag to signal that hydration has happened and other
     // JavaScript code may just run without waiting for the event that
     // is just about to be dispatched, as the event is only a one-time
@@ -365,8 +376,7 @@ pub fn hydrate() {{
     // Then dispatch the event for all the listeners that were added.
     let event = web_sys::Event::new({LEPTOS_HYDRATED:?}")
         .expect("error creating hydrated event");
-    let document = window.document()
-        .expect("document is missing");
+    let document = leptos::prelude::document();
     document.dispatch_event(&event)
         .expect("error dispatching hydrated event");
 }}"#
@@ -374,8 +384,8 @@ pub fn hydrate() {{
         <p>"
             With the notification that hydration is completed, the following JavaScript code may be called
             inside "<code>"Suspense"</code>" block (in this live example, it's triggered by providing the
-            following code via a "<code>"provide_context"</code>" which the code rendering component will then
-            use within a "<code>"Suspend"</code>"):
+            following JavaScript code via a "<code>"provide_context"</code>" which the code rendering
+            component will then use within a "<code>"Suspend"</code>"):
         "</p>
         <div><pre><code class="language-javascript">{js_hook}</code></pre></div>
         <p>"
@@ -424,14 +434,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                                 use crate::hljs;
                                 use wasm_bindgen::{closure::Closure, JsCast};
 
-                                // Dealing with event listeners may be easier when using `leptos_use`, but
-                                // this is a base example for Leptos, so set all this up with the underlying
-                                // wasm bindings...
-                                let document = web_sys::window()
-                                    .expect("window is missing")
-                                    .document()
-                                    .expect("document is missing");
-
+                                let document = document();
                                 // Rules relating to hydration still applies when loading via SSR!  Changing
                                 // the dom before hydration is done is still problematic, as the same issues
                                 // such as the panic as demonstrated in the relevant JavaScript demo.
@@ -453,7 +456,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                                 }).into_js_value();
                                 let options = web_sys::AddEventListenerOptions::new();
                                 options.set_once(true);
-                                // FIXME this actually is added as a unique function so after a quick re-
+                                // FIXME this actually is not added as a unique function so after a quick re-
                                 // render will re-add this as a new listener, which causes a double call
                                 // to highlightAll.  To fix this there needs to be a way to put the listener
                                 // and keep it unique, but this looks to be rather annoying to do...
@@ -465,27 +468,15 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                                 leptos::logging::log!("wasm csr_listener listener added");
 
                                 // Dispatch the event when this view is finally mounted onto the DOM.
-                                // Cheat a bit here by putting this in a script tag which will guarantee to
-                                // run in the JavaScript context since there's currently no way to do this
-                                // (as of leptos-0.7.0-beta2).
-                                // so instead of this...
-                                // let event = web_sys::Event::new("hljs_hook")
-                                //     .expect("error creating hljs_hook event");
-                                // document.dispatch_event(&event)
-                                //     .expect("error dispatching hydrated event");
-                                // ... just do this.
-                                view! {
-                                    <script>"document.dispatchEvent(new Event('hljs_hook'))"</script>
-                                }
-                            }
-                            #[cfg(feature = "ssr")]
-                            {
-                                // since the CSR returns a view with a script containing some static str,
-                                // to keep things consistent for hydration to happen correctly, the SSR
-                                // version will have to keep up...
-                                view! {
-                                    <script>""</script>
-                                }
+                                request_animation_frame(move || {
+                                    let event = web_sys::Event::new("hljs_hook")
+                                        .expect("error creating hljs_hook event");
+                                    document.dispatch_event(&event)
+                                        .expect("error dispatching hydrated event");
+                                });
+                                // Alternative, use a script tag, but at that point, you might as well write
+                                // all of the above in JavaScript because in this simple example none of the
+                                // above is native to Rust or Leptos.
                             }
                         }
                     }
@@ -539,6 +530,21 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
 
 #[component]
 fn WasmBindgenNaive() -> impl IntoView {
+    let example = r#"<Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+    move || Suspend::new(async move {
+        view! {
+            <pre><code>{code.await}</code></pre>
+            {
+                #[cfg(not(feature = "ssr"))]
+                {
+                    use crate::hljs::highlight_all;
+                    leptos::logging::log!("calling highlight_all");
+                    highlight_all();
+                }
+            }
+        }
+    })
+}</Suspense>"#;
     view! {
         <h2>"Will "<code>"wasm-bindgen"</code>" magically avoid all the problems?"</h2>
         <CodeDemoWasm mode=WasmDemo::Naive/>
@@ -556,11 +562,66 @@ fn WasmBindgenNaive() -> impl IntoView {
             "<code>"web_sys"</code>" in a similar manner like the JavaScript based solutions shown previously
             can fix this, but there are other approaches also.
         "</p>
+        <p>"
+            For a quick reference, the following is the "<code>"Suspense"</code>" that would ultimately render
+            the dynamic code block:
+        "</p>
+        <div><pre><code class="language-rust">{example}</code></pre></div>
     }
 }
 
 #[component]
 fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
+    let example = r#"#[cfg(not(feature = "ssr"))]
+{
+    use crate::hljs;
+    use wasm_bindgen::{closure::Closure, JsCast};
+
+    let document = document();
+    // Rules relating to hydration still applies when loading via SSR!  Changing
+    // the dom before hydration is done is still problematic, as the same issues
+    // such as the panic as demonstrated in the relevant JavaScript demo.
+    let hydrate_listener = Closure::<dyn Fn(_)>::new(move |_: web_sys::Event| {
+        leptos::logging::log!("wasm hydration_listener highlighting");
+        hljs::highlight_all();
+    }).into_js_value();
+    document.add_event_listener_with_callback(
+        LEPTOS_HYDRATED,
+        hydrate_listener.as_ref().unchecked_ref(),
+    ).expect("failed to add event listener to document");
+
+    // For CSR rendering, wait for the hljs_hook which will be fired when this
+    // suspended bit is fully mounted onto the DOM, and this is done using a
+    // JavaScript shim described below.
+    let csr_listener = Closure::<dyn FnMut(_)>::new(move |_: web_sys::Event| {
+        leptos::logging::log!("wasm csr_listener highlighting");
+        hljs::highlight_all();
+    }).into_js_value();
+    let options = web_sys::AddEventListenerOptions::new();
+    options.set_once(true);
+    // FIXME this actually is not added as a unique function so after a quick re-
+    // render will re-add this as a new listener, which causes a double call
+    // to highlightAll.  To fix this there needs to be a way to put the listener
+    // and keep it unique, but this looks to be rather annoying to do...
+    document.add_event_listener_with_callback_and_add_event_listener_options(
+        "hljs_hook",
+        csr_listener.as_ref().unchecked_ref(),
+        &options,
+    ).expect("failed to add event listener to document");
+    leptos::logging::log!("wasm csr_listener listener added");
+
+    // Dispatch the event when this view is finally mounted onto the DOM.
+    request_animation_frame(move || {
+        let event = web_sys::Event::new("hljs_hook")
+            .expect("error creating hljs_hook event");
+        document.dispatch_event(&event)
+            .expect("error dispatching hydrated event");
+    });
+    // Alternative, use a script tag, but at that point, you might as well write
+    // all of the above in JavaScript because in this simple example none of the
+    // above is native to Rust or Leptos.
+}"#;
+
     view! {
         <h2>"Using "<code>"wasm-bindgen"</code>" with proper consideration"</h2>
         <CodeDemoWasm mode=WasmDemo::ReadyEvent/>
@@ -571,14 +632,27 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
             way this is implemented, but it largely works.
         "</p>
         <p>"
+            The code that drives this is overly complicated, to say the least.  This is what got added to the
+            "<code>"view! {...}"</code>" from the last example:
+        "</p>
+        <details>
+            <summary>"Expand for the rather verbose code example"</summary>
+            <div><pre><code class="language-rust">{example}</code></pre></div>
+        </details>
+        <p>"
             Given that multiple frameworks that will manipulate the DOM in their own and assume they are the
-            only source of truth is a problem - this being demonstrated by Leptos assuming that nothing else
-            would change the DOM for hydration.  So, if it is possible to use the JavaScript library in a way
-            that wouldn't cause unexpected DOM changes, then that can be a way to avoid needing all these
-            additional event listeners for working around the panics.  Not to mention this is a very simple
-            example with a single Suspense (or Transition), if there are multiple ones and they have different
-            resolutions, calling that potentially indiscriminate JavaScript DOM manipulation function may
-            require additional care.
+            only source of truth is the problem - being demonstrated by Leptos in previous examples assuming
+            that nothing else would change the DOM for hydration.  So if it is possible to use the JavaScript
+            library in a way that wouldn't cause unexpected DOM changes, then that can be a way to avoid
+            needing all these additional event listeners for working around the panics.
+        "</p>
+        <p>"
+            One thing to note is that this is a very simple example with a single Suspense (or Transition), so
+            if there are multiple ones and they have different resolutions, calling that potentially
+            indiscriminate JavaScript DOM manipulation function may require additional care (e.g. needing to
+            wait for all the events in a future before making the final call to do make the invasive DOM
+            manipulation).  Let's look at one more example and a cheap workaround that can work for cases like
+            integrating the simple JavaScript library here.
         "</p>
     }
 }
