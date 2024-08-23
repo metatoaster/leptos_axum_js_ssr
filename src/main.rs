@@ -4,6 +4,9 @@ mod latency {
     pub static LATENCY: OnceLock<
         Mutex<std::iter::Cycle<std::slice::Iter<'_, u64>>>,
     > = OnceLock::new();
+    pub static ES_LATENCY: OnceLock<
+        Mutex<std::iter::Cycle<std::slice::Iter<'_, u64>>>,
+    > = OnceLock::new();
 }
 
 #[cfg(feature = "ssr")]
@@ -23,6 +26,7 @@ async fn main() {
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
     latency::LATENCY.get_or_init(|| [0, 4, 40, 400].iter().cycle().into());
+    latency::ES_LATENCY.get_or_init(|| [0, 4, 40, 400].iter().cycle().into());
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
@@ -48,14 +52,16 @@ async fn main() {
 	req: Request,
 	next: Next,
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
-        let filename = &req
+        let uri_parts = &mut req
             .uri()
             .path()
-            .rsplit('/')
-            .next()
-            .map(|s| s.to_string());
+            .rsplit('/');
+
+        let is_highlightjs = uri_parts.next() == Some("highlight.min.js");
+        let es = uri_parts.next() == Some("es");
+        let module_type = if es { "es module " } else { "standard " };
 	let res = next.run(req).await;
-        if filename.as_deref() == Some("highlight.min.js") {
+        if is_highlightjs {
             // additional processing if the filename is the test subject
             let (mut parts, body) = res.into_parts();
             let bytes = body
@@ -66,8 +72,9 @@ async fn main() {
                     format!("error reading body: {err}"),
                 ))?
                 .to_bytes();
+            let latency = if es { &latency::ES_LATENCY } else { &latency::LATENCY };
 
-            let delay = match latency::LATENCY
+            let delay = match latency
                 .get()
                 .expect("latency cycle wasn't set up")
                 .try_lock()
@@ -77,9 +84,10 @@ async fn main() {
             };
 
             // inject the logging of the delay used into the target script
-            log!("loading highlight.min.js with latency of {delay} ms");
-            let js_log = format!("\nconsole.log('loaded highlight.js with a \
-                 minimum latency of {delay} ms');");
+            log!("loading {module_type}highlight.min.js with latency of {delay} ms");
+            let js_log = format!(
+                "\nconsole.log('loaded {module_type}highlight.js with a minimum latency of {delay} ms');"
+            );
             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
 
             let bytes = [bytes, js_log.into()].concat();
