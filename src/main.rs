@@ -9,8 +9,16 @@ mod latency {
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::{http::header, response::IntoResponse, routing::get, Router};
+    use axum::{
+        body::Body,
+        extract::Request,
+        http::{header::{self, HeaderValue}, StatusCode},
+        middleware::{self, Next},
+        response::{IntoResponse, Response},
+        routing::get, Router,
+    };
     use axum_js_ssr::app::*;
+    use http_body_util::BodyExt;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
@@ -30,26 +38,63 @@ async fn main() {
     }
 
     async fn highlight_js() -> impl IntoResponse {
-        let delay = match latency::LATENCY
-            .get()
-            .expect("latency cycle wasn't set up")
-            .try_lock()
-        {
-            Ok(ref mut mutex) => *mutex.next().expect("cycle always has next"),
-            Err(_) => 0,
-        };
-        log!("loading highlight.min.js with latency of {delay} ms");
-        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        let highlight_js_src = include_str!(
-            "../node_modules/@highlightjs/cdn-assets/highlight.min.js"
-        );
         (
             [(header::CONTENT_TYPE, "text/javascript")],
-            format!(
-                "{highlight_js_src}\nconsole.log('loaded highlight.js with a \
-                 minimum latency of {delay} ms')"
-            ),
+            include_str!("../node_modules/@highlightjs/cdn-assets/highlight.min.js"),
         )
+    }
+
+    async fn latency_for_highlight_js(
+	req: Request,
+	next: Next,
+    ) -> Result<impl IntoResponse, (StatusCode, String)> {
+        let filename = &req
+            .uri()
+            .path()
+            .rsplit('/')
+            .next()
+            .map(|s| s.to_string());
+	let res = next.run(req).await;
+        if filename.as_deref() == Some("highlight.min.js") {
+            // additional processing if the filename is the test subject
+            let (mut parts, body) = res.into_parts();
+            let bytes = body
+                .collect()
+                .await
+                .map_err(|err| (
+                    StatusCode::BAD_REQUEST,
+                    format!("error reading body: {err}"),
+                ))?
+                .to_bytes();
+
+            let delay = match latency::LATENCY
+                .get()
+                .expect("latency cycle wasn't set up")
+                .try_lock()
+            {
+                Ok(ref mut mutex) => *mutex.next().expect("cycle always has next"),
+                Err(_) => 0,
+            };
+
+            // inject the logging of the delay used into the target script
+            log!("loading highlight.min.js with latency of {delay} ms");
+            let js_log = format!("\nconsole.log('loaded highlight.js with a \
+                 minimum latency of {delay} ms');");
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+
+            let bytes = [bytes, js_log.into()].concat();
+            let length = bytes.len();
+            let body = Body::from(bytes);
+
+            // Provide the bare minimum set of headers to avoid browser cache.
+            parts.headers = header::HeaderMap::from_iter([
+                (header::CONTENT_TYPE, HeaderValue::from_static("text/javascript")),
+                (header::CONTENT_LENGTH, HeaderValue::from(length)),
+            ].into_iter());
+            Ok(Response::from_parts(parts, body))
+        } else {
+            Ok(res)
+        }
     }
 
     let app = Router::new()
@@ -60,6 +105,7 @@ async fn main() {
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
+        .layer(middleware::from_fn(latency_for_highlight_js))
         .with_state(leptos_options);
 
     // run our app with hyper

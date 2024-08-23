@@ -730,9 +730,10 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
         };
         #[cfg(not(feature = "ssr"))]
         {
+            leptos::logging::log!("calling out to hljs::highlight");
             let result = crate::hljs::highlight(code, lang);
             Effect::new(move |_| {
-                leptos::logging::log!("running hljs::highlight inside an effect");
+                leptos::logging::log!("setting the result of hljs::highlight inside an effect");
                 result.clone().map(|r| set_inner.set(r));
             });
         };

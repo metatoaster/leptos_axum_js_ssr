@@ -24,4 +24,5 @@ pub fn hydrate() {
     document
         .dispatch_event(&event)
         .expect("error dispatching hydrated event");
+    leptos::logging::log!("dispatched hydrated event");
 }
