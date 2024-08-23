@@ -43,6 +43,22 @@ nav a.example::before {
     content: counter(css-counter) ". ";
 }
 
+nav a.panicked {
+    background: #fdd;
+}
+
+div#notice {
+    display: none;
+}
+
+main div#notice.panicked {
+    background: #fdd;
+    position: sticky;
+    top: 0;
+    padding: 0.5em 2em;
+    display: block;
+}
+
 main {
     width: 100%;
     overflow: auto;

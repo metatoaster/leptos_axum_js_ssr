@@ -62,6 +62,12 @@ pub fn App() -> impl IntoView {
                     <small>"to make things work again"</small></a>
             </nav>
             <main>
+                <div id="notice">
+                    "The application has panicked. "
+                    <a href="/" target="_self">
+                        "Restart the application by going home"
+                    </a>"."
+                </div>
                 <article>
                     <h1>"Leptos JavaScript Integration Demo"</h1>
                     <FlatRoutes fallback>
