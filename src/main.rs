@@ -26,20 +26,19 @@ async fn main() {
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
     latency::LATENCY.get_or_init(|| [0, 4, 40, 400].iter().cycle().into());
-    latency::ES_LATENCY.get_or_init(|| [0, 4, 40, 400].iter().cycle().into());
+    latency::ES_LATENCY.get_or_init(|| [0].iter().cycle().into());
+    // Having the ES_LATENCY (a cycle of latency for the loading of the es
+    // module) in an identical cycle as LATENCY (for the standard version)
+    // adversely influences the intended demo, as this ultimately delays
+    // hydration when set too high which can cause panic under every case.
+    // If you want to test the effects of the delay just modify the list of
+    // values for the desired cycle of delays.
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
-
-    async fn dummy_js() -> impl IntoResponse {
-        (
-            [(header::CONTENT_TYPE, "text/javascript")],
-            "console.log('dummy.js loaded');\n",
-        )
-    }
 
     async fn highlight_js() -> impl IntoResponse {
         (
@@ -107,7 +106,6 @@ async fn main() {
 
     let app = Router::new()
         .route("/highlight.min.js", get(highlight_js))
-        .route("/dummy.js", get(dummy_js))
         .leptos_routes(&leptos_options, routes, {
             let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())

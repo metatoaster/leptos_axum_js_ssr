@@ -9,7 +9,17 @@ pub const CH03_05A: &str = r#"fn main() {
         println!("condition was false");
     }
 }
+
+
+
+
 "#;
+
+// For some reason, swapping the code examples "fixes" example 6.  It
+// might have something to do with the lower complexity of highlighting
+// a shorter example.  Anyway, including extra newlines for the shorter
+// example to match with the longer in order to avoid reflowing the
+// table during the async resource loading for CSR.
 
 pub const CH05_02A: &str = r#"fn main() {
     let width1 = 30;

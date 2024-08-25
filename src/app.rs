@@ -33,43 +33,43 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet id="leptos" href="/pkg/axum_js_ssr.css"/>
-        <Title text="Leptos JavaScript Integration Demo with Axum SSR"/>
+        <Title text="Leptos JavaScript Integration Demo with SSR in Axum"/>
         <Meta name="color-scheme" content="dark light"/>
         <Router>
             <nav>
-                <A href="/">"Home"</A>
+                <A attr:class="section" href="/">"Home"</A>
                 <A attr:class="example" href="/naive">"Naive "<code>"<script>"</code>
-                    <small>"truly naive to start"</small></A>
+                    <small>"truly naive to start off"</small></A>
                 <A attr:class="example" href="/naive-alt">"Leptos "<code>"<Script>"</code>
                     <small>"naively using load event"</small></A>
                 <A attr:class="example" href="/naive-hook">"Leptos "<code>"<Script>"</code>
                     <small>"... correcting placement"</small></A>
                 <A attr:class="example" href="/naive-fallback">"Leptos "<code>"<Script>"</code>
                     <small>"... with fallback"</small></A>
-                <A attr:class="example" href="/custom-event">"Hydrated Event"
-                    <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code></small></A>
+                <A attr:class="example section" href="/custom-event">"Hydrated Event"
+                    <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code>" in Rust"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-naive">"Using "<code>"wasm-bindgen"</code>
                     <small>"naively to start with"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
-                    <small>"dancing with events"</small></A>
+                    <small>"overcomplication with events"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-effect">"Using "<code>"wasm-bindgen"</code>
                     <small>"lazily delay DOM manipulation"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
-                    <small>"w/o DOM manipulation"</small></A>
-                <A attr:class="example" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
-                    <small>"as above, with effects"</small></A>
+                    <small>"without DOM manipulation"</small></A>
+                <A attr:class="example section" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
+                    <small>"correct above with effects"</small></A>
                 <a id="reset" href="/" target="_self">"Restart/Rehydrate"
                     <small>"to make things work again"</small></a>
             </nav>
             <main>
                 <div id="notice">
-                    "The application has panicked. "
+                    "The WASM application has panicked. "
                     <a href="/" target="_self">
                         "Restart the application by going home"
                     </a>"."
                 </div>
                 <article>
-                    <h1>"Leptos JavaScript Integration Demo"</h1>
+                    <h1>"Leptos JavaScript Integration Demo with SSR in Axum"</h1>
                     <FlatRoutes fallback>
                         <Route path=path!("") view=HomePage/>
                         <Route path=path!("naive") view=Naive ssr/>
@@ -96,15 +96,15 @@ fn HomePage() -> impl IntoView {
     view! {
         <p>"
             This example application demonstrates a number of ways that JavaScript may be included and used
-            with Leptos, with the following links leading to examples which may or may not work as expected
-            to show the right and wrong ways to integrate JavaScript into Leptos.
+            with Leptos naively, describing and showing the shortcomings and failures associated with each of
+            them for both SSR (Server-Side Rendering) and CSR (Client-Side Rendering) with hydration.
         "</p>
         <p>"
             For the demonstrations, "<a href="https://github.com/highlightjs/highlight.js"><code>
-            "highlight.js"</code></a>" will be called within this Leptos application through the following
-            pages to show what works and what does not, which hopefully clearly show the benefits and
-            drawbacks of every single method.  Needless to say, JavaScript must be enabled, and having the
-            browser's developer tools/console opened will show the problems as they happen.
+            "highlight.js"</code></a>" will be invoked from within this Leptos application by the ten pages
+            linked on the side bar.  Since the library to be integrated is a JavaScript library, it must be
+            enabled to fully appreciate this demo, and having the browser's developer tools/console opened is
+            recommended as the logs will indicate the effects and issues as they happen.
         "</p>
         <p>"
             Examples 1 to 5 are primarily JavaScript based, where the integration code is included as "<code>
@@ -165,24 +165,30 @@ fn CodeDemo() -> impl IntoView {
 
 #[component]
 fn Naive() -> impl IntoView {
+    let loader = r#"<script src="/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>"#;
     view! {
         <h2>"Showing what happens when script inclusion is done naively"</h2>
         <CodeDemo/>
-        <script src="/dummy.js"></script>
-        <script src="/highlight.min.js"></script>
-        <script>"hljs.highlightAll();"</script>
         <p>"
             This page demonstrates what happens (or doesn't happen) when it is assumed that the "<code>
             "highlight.js"</code>" library can just be included from some CDN (well, hosted locally for this
-            example) as per their instructions for basic usage in the browser.  The following actions should
-            be taken in order to fully experience the things that do not work.
+            example) as per their instructions for basic usage in the browser, specifically:
+        "</p>
+        <div><pre><code class="language-html">{loader}</code></pre></div>
+        <p>"
+            The following actions should be taken in order to fully experience the things that do not work as
+            expected:
         "</p>
         <ol>
             <li>"
                 You may find that during the initial load of this page when first navigating to here from
                 \"Home\" (do navigate there, reload to reinitiate this application to properly replicate the
-                behavior), none of the code examples below are highlighted, but simply going back using the
-                browser's navigation system and forward to here again, the inline code block will become
+                behavior, or simply use the Restart link at the bottom), none of the code examples below are
+                highlighted.
+            "</li>
+            <li>"
+                Go forward again using the browser's navigation system the inline code block will become
                 highlighted.  The cause is due to "<code>"highlight.js"</code>" being loaded in a standard
                 "<code>"<script>"</code>" tag that is part of this component and initially it wasn't loaded
                 before the call to "<code>"hljs.highlightAll();"</code>" was made. Later, when the component
@@ -190,24 +196,61 @@ fn Naive() -> impl IntoView {
                 (while also reloading the script, which probably isn't desirable for this use case).
             "</li>
             <li>"
-                If you use the browser's navigation system and reload this page, you will find that *both*
-                code examples now appear to highlight correctly, yay! However now none of the local links
-                work.  This is because the hydration system found markup where text was expected and that's
-                panics the wasm module.  This error may be visible using the browser's console, but overall
-                this pretty much breaks the page, so use the browser's navigation, hit back, and then refresh
-                (because the back action triggered a push state, and with hydration broken, the reactive
-                system is also broken, so yes the page is very much in a crashed state because all of the
-                reactive links don't work, use the "<a href="/" target="_self">"Restart/Rehydrate"</a>" link
-                to go back to home as the link is non-reactive).
+                If you have the browser reload this page, you will find that "<strong>"both"</strong>" code
+                examples now appear to highlight correctly, yay! However you will also find that the browser's
+                back button appears to do nothing at all (even though the address bar may have changed), and
+                that most of the links on the side-bar are non-functional.  A message should have popped up at
+                the top indicating that the application has panicked.
+                "<details>"
+                    "<summary>"Details about the cause of the crash:"</summary>
+                    <p>"
+                        The cause here is because the hydration system found a node where text was expected, a
+                        simple violation of the application's invariant.  Specifically, the code block
+                        originally contained plain text, but with highlighting that got changed to some HTML
+                        markup "<em>"before"</em>" hydration happened, completely ouside of expectations.
+                        Generally speaking, a panic is the worst kind of error, as it is a hard crash which
+                        stops the application from working, and in this case the reactive system is in a
+                        completely non-functional state.
+                    "</p>
+                    <p>"
+                        Fortunately for this application, some internal links within this application have
+                        been specifically excluded from the reactive system (specifically the restart links,
+                        so they remain usable as they are just standard links which include the bottommost one
+                        of the side bar and the one that should become visible as a notification as the panic
+                        happened at the top - both may be used to navigate non-reactively back to the
+                        homepage.
+                    "</p>
+                    <p>"
+                        Navigating back after using the non-reactive links will also restart the application,
+                        so using that immediately after to return to this page will once again trigger the
+                        same condition that will result the hydration to panic.  If you wish to maintain the
+                        push state within the history, simply use the browser navigation to navigate through
+                        those pushed addresses and find one that may be reloaded without causing the crash,
+                        and then go the opposite direction the same number of steps to get back to here.
+                    "</p>"
+                "</details>"
             "</li>
             <li>"
-                Moreover, if you continue to use the browser's navigation system (without reloading here to
-                cause the panic), you will find that the the browser's console log is spammed with dummy.js
-                loaded - this is caused by the script unloading/reloading every time its "<code>"<script>"
-                </code>" tag being re-created by this component.  This may or may not be a desirable
-                behavior.
+                In the working CSR state, if you continue to use the browser's navigation system to go back to
+                home and forward back to this page, you will find that the the browser's console log is
+                spammed with the different delays added to the loading of the standard highlight.js file.  The
+                cause is because the script is unloaded/reloaded every time its "<code>"<script>"</code>" tag
+                is re-created by this component.  This may or may not be a desirable behavior, so where
+                exactly these tags are situated will matter - if the goal is to load the script once, the tag
+                should be provided above the Router.
+            "</li>
+            <li>"
+                Simply use the restart links to get back home and move onto the next example - or come back
+                here, if you wish - while all the examples can be used out of order, the intended broken
+                behaviors being demonstrated are best experienced by going home using the reactive link at the
+                top, and go back to the target example.  Going between different examples demonstrating the
+                subtly broken behavior(s) in arbitrary order can and will amplify into further unexpected and
+                potentially hard to reproduce behaviors.  What they are and why they happen are left as
+                exercise for the users and readers of this demo application.
             "</li>
         </ol>
+        <script src="/highlight.min.js"></script>
+        <script>"hljs.highlightAll();"</script>
     }
 }
 
@@ -247,6 +290,15 @@ if (window.hljs) {
                         race condition that was described.
                     "</li>
                 </ol>
+                <p>"
+                    All that being said, all these naive examples still result in hydration being
+                    non-functional in varying degrees of (non-)reproducibility due to race conditions.  Is
+                    there any way to fix this?  Is "<code>"wasm-bindgen"</code>" the only answer?  What if the
+                    goal is to incorporate external scripts that change often and thus can't easily have
+                    bindings built?  Follow onto the next examples to solve some of this, at the very least
+                    prevent the panic during hydration.
+                "</p>
+
             }.into_any()
         } else {
             view! {
@@ -267,7 +319,8 @@ if (window.hljs) {
                     "</li>
                     <li><strong>SSR</strong>"
                         Much like the second example, hydration will still panic some of the time as per the
-                        race condition that was described.
+                        race condition that was described - basically if the timing results in CSR not showing
+                        highlight code, the code will highlight here in SSR but will panic during hydration.
                     "</li>
                 </ol>
             }.into_any()
@@ -283,14 +336,15 @@ if (window.hljs) {
                 <li><strong>CSR</strong>"
                     Unfortunately, the hook is being set directly on this component, rather than inside the
                     view for the dynamic block.  Given the nature of asynchronous loading which results in the
-                    uncertainty of the order of events, it may or may not result in the dynamic code block
-                    being highlighted under CSR (as there may or may not be a fully formed code block for
+                    uncertainty of the order of events, it may or may not result in the dynamic code block (or
+                    any) being highlighted under CSR (as there may or may not be a fully formed code block for
                     highlighting to happen).  This is affected by latency, so the loader here emulates a small
                     number of latency values (they repeat in a cycle).  The latency value is logged into the
-                    console and it may be referred to witness its effects on what it does under CSR.  Test
-                    this by going from home to here and then navigating between them using the browser's back
-                    and forward feature for convenience - do ensure the "<code>"highlight.js" </code>" isn't
-                    being cached by the browser.
+                    console and it may be referred to witness its effects on what it does under CSR - look for
+                    the line that might say \"loaded standard highlight.js with a minimum latency of 40 ms\".
+                    Test this by going from home to here and then navigating between them using the browser's
+                    back and forward feature for convenience - do ensure the "<code>"highlight.js" </code>"
+                    isn't being cached by the browser.
                 "</li>
                 <li><strong>SSR</strong>"
                     Moreover, hydration will panic if the highlight script is loaded before hydration is
@@ -308,6 +362,8 @@ if (window.hljs) {
         <h2>"Using the Leptos "<code>"<Script>"</code>" component asynchronously instead"</h2>
         <CodeDemo/>
         <Script id="hljs-src" async_="true" src="/highlight.min.js">""</Script>
+        // Example 2's <Script> invocation; Example 3 and 4 will be provided via a context to allow the
+        // inclusion of the `highlightAll()` call in the Suspend
         {(!hook).then(|| view! { <Script>{render_hook}</Script>})}
         <p>"
             What the "<code>"<Script>"</code>" component does is to ensure the "<code>"<script>"</code>" tag
@@ -319,13 +375,6 @@ if (window.hljs) {
             is loaded.  This should all work out fine, right?
         "</p>
         {explanation}
-        <p>"
-            All that being said, all these naive examples still result in hydration being non-functional in
-            varying degrees of (non-)reproducibility due to race conditions.  Is there any way to fix this?
-            Is "<code>"wasm-bindgen"</code>" the only answer?  What if the goal is to incorporate external
-            scripts that change often and thus can't easily have bindings built?  Follow onto the next
-            examples to solve some of this, at the very least prevent the panic during hydration.
-        "</p>
     }
 }
 
@@ -356,8 +405,8 @@ Promise.all(events).then(() => {{
         <p>"
             So if using events fixes problems with timing issues, couldn't Leptos provide an event to signal
             that the body is hydrated?  Actually, yes, since a typical Leptos application provide a "<code>
-            "fn hydate()"</code>" in its "<code>"lib.rs"</code>", that can be modified to provide this very
-            thing.  All that it takes is something like the following placed after
+            "fn hydate()"</code>" in "<code>"lib.rs"</code>", that can be modified to provide this very
+            thing, simply by providing the following after "<code>"leptos::mount::hydrate_body(App);"</code>".
         "</p>
         <div><pre><code class="language-rust">{format!(
             r#"
@@ -365,7 +414,8 @@ Promise.all(events).then(() => {{
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {{
     use app::App;
-    // ... other hooks omitted
+    // ... other calls omitted, as this example is only a rough
+    // reproduction of what is actually executed.
     leptos::mount::hydrate_body(App);
 
     // Now hydrate_body is done, provide ways to inform that
@@ -380,7 +430,7 @@ pub fn hydrate() {{
         &wasm_bindgen::JsValue::TRUE,
     ).expect("error setting hydrated status");
     // Then dispatch the event for all the listeners that were added.
-    let event = web_sys::Event::new({LEPTOS_HYDRATED:?}")
+    let event = web_sys::Event::new({LEPTOS_HYDRATED:?})
         .expect("error creating hydrated event");
     let document = leptos::prelude::document();
     document.dispatch_event(&event)
@@ -395,10 +445,19 @@ pub fn hydrate() {{
         "</p>
         <div><pre><code class="language-javascript">{js_hook}</code></pre></div>
         <p>"
-            No matter what latency there is, whatever the order did the API calls are done, this setup ensures
-            the the code gets highlighted only after hydration is done and also after relevant delayed content
-            are rendered from API calls.
+            For this simple example with a single "<code>"Suspense"</code>", no matter what latency there is,
+            in whichever order the API calls are completed, the setup ensures that "<code>"highlightAll()"
+            </code>" is called only after hydration is done and also after the delayed content is properly
+            rendered onto the DOM.  Specifically, only use the event to wait for the required resource if it
+            is not set to a ready state, and wait for all the events to become ready before actually calling
+            the function.
         "</p>
+        <p>"
+            If there are multiple "<code>"Suspense"</code>", it will be a matter of adding all the event
+            listeners that will respond to the completion of all the "<code>"Suspend"</code>"ed futures, which
+            will then invoke the code highlighting function.
+        "</p>
+        // Leaving this last bit as a bonus page? As an exercise for the readers?
     }
 }
 
@@ -465,7 +524,8 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                                 // FIXME this actually is not added as a unique function so after a quick re-
                                 // render will re-add this as a new listener, which causes a double call
                                 // to highlightAll.  To fix this there needs to be a way to put the listener
-                                // and keep it unique, but this looks to be rather annoying to do...
+                                // and keep it unique, but this looks to be rather annoying to do from within
+                                // this example...
                                 document.add_event_listener_with_callback_and_add_event_listener_options(
                                     "hljs_hook",
                                     csr_listener.as_ref().unchecked_ref(),
@@ -555,15 +615,16 @@ fn WasmBindgenNaive() -> impl IntoView {
         <h2>"Will "<code>"wasm-bindgen"</code>" magically avoid all the problems?"</h2>
         <CodeDemoWasm mode=WasmDemo::Naive/>
         <p>"
-            Well, clearly not, because this demo behaves almost exactly like the very first naive example,
-            where only the inline code block will highlight under CSR and hydration is broken when trying to
-            load this under SSR.  This is the consequence of porting the logic naively.  In this example, the
-            calling of "<code>"hljs::highlight_all()"</code>" is located inside a "<code>"Suspend"</code>"
-            immediately after the code block, but it doesn't mean the execution will apply to that because it
-            hasn't been mounted onto the DOM itself for "<code>"highlight.js"</code>" to process.
+            Well, the naively done example clearly does not work, as the behavior of this demo is almost
+            exactly like the very first naive JavaScript example (after the script loaded), where only the
+            inline code block will highlight under CSR and hydration is broken when trying to load this under
+            SSR.  This is the consequence of porting the logic naively.  In this example, the calling of
+            "<code>"hljs::highlight_all()"</code>" is located inside a "<code>"Suspend"</code>" immediately
+            after the code block, but it doesn't mean the execution will apply to that because it hasn't been
+            mounted onto the DOM itself for "<code>"highlight.js"</code>" to process.
         "</p>
         <p>"
-            Similarly, SSR will also error under a similar mechanism, which again breaks hydration because the
+            Similarly, SSR may also error under a similar mechanism, which again breaks hydration because the
             code is run on the dehydrated nodes before hydration has happened.  Using event listeners via
             "<code>"web_sys"</code>" in a similar manner like the JavaScript based solutions shown previously
             can fix this, but there are other approaches also.
@@ -608,7 +669,8 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
     // FIXME this actually is not added as a unique function so after a quick re-
     // render will re-add this as a new listener, which causes a double call
     // to highlightAll.  To fix this there needs to be a way to put the listener
-    // and keep it unique, but this looks to be rather annoying to do...
+    // and keep it unique, but this looks to be rather annoying to do from within
+    // this example...
     document.add_event_listener_with_callback_and_add_event_listener_options(
         "hljs_hook",
         csr_listener.as_ref().unchecked_ref(),
@@ -638,8 +700,8 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
             way this is implemented, but it largely works.
         "</p>
         <p>"
-            The code that drives this is overly complicated, to say the least.  This is what got added to the
-            "<code>"view! {...}"</code>" from the last example:
+            The code that drives this is needlessly overcomplicated, to say the least.  This is what got added
+            to the "<code>"view! {...}"</code>" from the last example:
         "</p>
         <details>
             <summary>"Expand for the rather verbose code example"</summary>
@@ -654,19 +716,18 @@ fn WasmBindgenJSHookReadyEvent() -> impl IntoView {
         "</p>
         <p>"
             One thing to note is that this is a very simple example with a single Suspense (or Transition), so
-            if there are multiple ones and they have different resolutions, calling that potentially
-            indiscriminate JavaScript DOM manipulation function may require additional care (e.g. needing to
-            wait for all the events in a future before making the final call to do make the invasive DOM
-            manipulation).  Let's look at one more example and a cheap workaround that can work for cases like
-            integrating the simple JavaScript library here.
+            if there are more than one of them and they have significantly different resolution timings,
+            calling that potentially indiscriminate JavaScript DOM manipulation function may require
+            additional care (e.g. needing to wait for all the events in a future before making the final call
+            to do make the invasive DOM manipulation).  Let's look at one more similar example that use a
+            cheap workaround that may work for cases like integrating the simple JavaScript library here.
         "</p>
     }
 }
 
 #[component]
 fn WasmBindgenEffect() -> impl IntoView {
-    let example = r#"
-<Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
+    let example = r#"<Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
     move || Suspend::new(async move {
         Effect::new(move |_| {
             request_animation_frame(move || {
@@ -694,17 +755,18 @@ fn WasmBindgenEffect() -> impl IntoView {
         <div><pre><code class="language-rust">{example}</code></pre></div>
         <p>"
             However, this method does have a drawback, which is that the inline code blocks will be processed
-            multiple times by this indiscriminate method.  We could go back to the previous example where we
-            use events to trigger for when the Suspend is resolved, but this will mean there needs to be some
-            way to co-ordinate and wait for all of them to ensure the JavaScript library is only invoked once
-            on the hydrated output.
+            multiple times by this indiscriminate method (which "<code>"highlight.js"</code>" thankfully has a
+            failsafe detection which avoids issues, but definitely don't count on this being the norm with
+            JavaScript libraries).  We could go back to the previous example where we use events to trigger
+            for when the Suspend is resolved, but this will mean there needs to be some way to co-ordinate and
+            wait for all of them to ensure the JavaScript library is only invoked once on the hydrated output.
         "</p>
         <p>"
-            Better alternatives should be used if they are found to be available.  For example, if the
-            JavaScript library to be integrated has a method that is less invasive call that works at a
-            smaller scope, that would be a much better alternative, and even better is to use them from
-            directly from Rust through "<code>"wasm-bindgen"</code>".  In the next couple examples we will see
-            how to put this into practice.
+            If the JavaScript library provides an alternative API that does not involve this wrestling of the
+            DOM but does achieve the intended objectives is in fact available, it would definitely be the
+            better choice.  Even better, make them available in Rust through "<code>"wasm-bindgen"</code>" so
+            that the relevant Leptos component may use them directly.  In the next couple examples we will see
+            how this idea may be put into practice.
         "</p>
     }
 }
@@ -812,33 +874,35 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
         <p>"
             Whenever possible, look for a way to use the target JavaScript library to produce the desired
             markup without going through a global DOM manipulation can end up being much more straight-forward
-            to write.  More so if there is a server side counterpart, which means the use of the module don't
-            need the disambiguation within the component itself.  A simplified version of a component that
-            will render a code block that gets highlighted under CSR (and plain text under SSR) may look
-            something like this:
+            to write when working in pure Rust code.  More so if there is a server side counterpart, which
+            means the use of the module don't need the disambiguation within the component itself.  A
+            simplified version of a component that will render a code block that gets highlighted under CSR
+            (and plain text under SSR) may look something like this:
         "</p>
         <CodeInner code lang/>
         <p>"
-            In the above example, no additional "<code>"<script>"</code>" tag, event listeners, post-\
-            hydration processing or other DOM manipuation are needed, as the JavaScript function that converts
-            a string to highlighted markup can be made from Rust through the "<code>"wasm-bindgen"</code>"
-            bindngs under CSR.  However, as the highlight functionality isn't available under SSR (for this
-            iteration) and so it's simply processed using "<code>"html_escape"</code>".  Given the difference
-            between CSR and SSR, the cases are disambiguated via the use of "<code>"#[cfg(feature = ...)]"
-            </code>" for the desired behavior.  If there is a corresponding API for highlighting SSR, this
-            feature gating would be managed at the library level and the component would simply call the
-            function directly.  This would result in the SSR/CSR being isomorphic, even with JavaScript
-            disabled on the client.
+            In the above example, no additional "<code>"<script>"</code>" tags, post-hydration processing,
+            event listeners nor other DOM manipuation are needed, as the JavaScript function that converts a
+            string to highlighted markup can be made from Rust through bindings generated with the use of
+            "<code>"wasm-bindgen"</code>" under CSR.  As the highlight functionality isn't available under
+            SSR, the incoming code is simply processed using "<code>"html_escape::encode_text"</code>".
         "</p>
         <p>"
-            ... Well, at least that's the story, but in practice there is a bit of a kink during hydration.
-            On hydration, the CSR rendering kicks in and calls "<code>"hljs::highlight"</code>", producing a
-            different output that should have triggered the re-rendering.  As hydration assumes the HTML
-            rendered on the server is the content, a change to render something else is not something it
-            anticipates for performance reasons is it avoids unnecessary work, meaning when during hydration
-            the syntax highlighting will not be shown as expected.  Fortunately, this is where effects comes
-            in as it provides the intent to do something on the client side, and the next example will show
-            how this should be done.
+            ... Well, if only it actually works, as there is a bit of an unexpected surprise during hydration.
+            During the hydration of the above code rendering component, the CSR specific pipeline kicks in and
+            calls "<code>"hljs::highlight"</code>", producing a different output that was assumed to trigger
+            a re-rendering.  As hydration assumes the HTML rendered under SSR is isomorphic with CSR, a
+            violation of this expectation (i.e. CSR rendering something entierly different) is not something
+            it anticipates; the lack of re-rendering is in fact an optimization for performance reasons as it
+            avoids unnecessary work.  However in this instance, that isn't the desired behavior as the the
+            syntax highlighting will not be shown as expected, and thankfully in this instance it does not
+            result in a crash.
+        "</p>
+        <p>"
+            All that being said, the code is not doing what is desired, is there any way to go about this?
+            Fortunately, this is where effects comes in as it provides the intent to do something on the
+            client side, being able to function as an opt-in for CSR content to \"overwrite\" SSR content.
+            The next and final example will show how this should be done.
         "</p>
     }
 }
@@ -870,31 +934,46 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
         <h2>"Corrected example using effects."</h2>
         <CodeDemoWasmInner/>
         <p>"
-            Whenever possible, look for a way to use the target JavaScript library to produce the desired
-            markup without going through a global DOM manipulation can end up being much more straight-forward
-            to write.  More so if there is a server side counterpart, which means the use of the module don't
-            need the disambiguation within the component itself.  A simplified version of a component that
-            will render a code block that gets highlighted under CSR (and plain text under SSR) may look
-            something like this:
+            Since the previous example didn't quite get everything working due to the component here providing
+            different content between SSR and CSR, using client side effects can opt-in the difference to
+            overwrite the SSR rendering when hydration is complete.  The improved version of the code
+            rendering component from the previous example may look something like the following:
         "</p>
         <CodeInner code lang/>
         <p>"
-            In the above example, no additional "<code>"<script>"</code>" tag, event listeners, post-\
-            hydration processing or other DOM manipuation are needed, as the JavaScript function that converts
-            a string to highlighted markup can be made from Rust through the "<code>"wasm-bindgen"</code>"
-            bindngs under CSR.  However, as the highlight functionality isn't available under SSR (for this
-            iteration) and so it's simply processed using "<code>"html_escape"</code>".  Given the difference
-            between CSR and SSR, the cases are disambiguated via the use of "<code>"#[cfg(feature = ...)]"
-            </code>" for the desired behavior.  If there is a corresponding API for highlighting SSR, this
-            feature gating would be managed at the library level and the component would simply call the
-            function directly.  This would result in the SSR/CSR being isomorphic, even with JavaScript
-            disabled on the client.
+            With the use of effects, the expected final rendering after hydration and under CSR will be the
+            highlighted version as expected.  As part of trial and error, the author previously tried to
+            workaround this issue by using events via "<code>"web_sys"</code>" hack around signal, but again,
+            using effects like so is a lot better for this particular library.
         "</p>
         <p>"
-            With the use of effects, the expected rendered result under hydration and normal CSR will be the
-            highlighted version as expected.  As part of trial and error, the author tried to workaround this
-            issue by using events via "<code>"web_sys"</code>" hack around signal, but again, using effects
-            like so is a lot better.
+            Given the difference between CSR and SSR, the two different renderings are disambiguated via the
+            use of "<code>"[cfg(feature = ...)]"</code>" for the available behavior.  If there is a
+            corresponding API to provided highlighting markup under SSR, this feature gating would be managed
+            at the library level and the component would simply call the "<code>"highlight"</code>" function
+            directly, resulting in both SSR/CSR rendering being fully isomorphic even with JavaScript disabled
+            on the client.
+        "</p>
+        <p>"
+            To include the output of JavaScript code for SSR may be achieved in any of the following ways:
+        "</p>
+        <ul>
+            <li>"
+                Run a JavaScript code in some JavaScript runtime such as Node.js, SpiderMonkey or Deno with
+                the input, and return the collected output.
+            "</li>
+            <li>"
+                Use a JavaScript engine as above but more directly through some kind of Rust bindings through
+                packages such as "<code>"rusty_v8"</code>" or "<code>"mozjs"</code>".
+            "</li>
+            <li>"
+                Or go the full WASM route - compile the required JavaScript into WASM and use that through
+                Wasmtime on the server.
+            "</li>
+        </ul>
+        <p>"
+            All of the above are very much outside the scope of this demo which is already showing the too
+            many ways to include JavaScript into a Leptos project.
         "</p>
     }
 }

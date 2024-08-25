@@ -34,6 +34,10 @@ nav a[aria-current="page"] {
     background-color: #e0e0e0;
 }
 
+nav a:hover {
+    background-color: #e7e7e7;
+}
+
 nav a small {
     display: block;
 }
@@ -45,6 +49,10 @@ nav a.example::before {
 
 nav a.panicked {
     background: #fdd;
+}
+
+nav a.section {
+    border-bottom: 1px solid #777;
 }
 
 div#notice {
