@@ -14,7 +14,7 @@ body {
 nav {
     min-width: 17em;
     height: 100vh;
-    counter-reset: css-counter 0;
+    counter-reset: example-counter 0;
     list-style-type: none;
     list-style-position: outside;
     overflow: auto;
@@ -31,8 +31,14 @@ nav a small {
 }
 
 nav a.example::before {
-    counter-increment: css-counter 1;
-    content: counter(css-counter) ". ";
+    counter-reset: subexample-counter 0;
+    counter-increment: example-counter 1;
+    content: counter(example-counter) ". ";
+}
+
+nav a.subexample::before {
+    counter-increment: subexample-counter 1;
+    content: counter(example-counter) "." counter(subexample-counter) " ";
 }
 
 div#notice {

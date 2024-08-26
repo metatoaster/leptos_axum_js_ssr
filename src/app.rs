@@ -40,7 +40,7 @@ pub fn App() -> impl IntoView {
         <Meta name="color-scheme" content="dark light"/>
         <Router>
             <nav>
-                <A attr:class="section" href="/">"Home"</A>
+                <A attr:class="section" href="/">"Introduction (home)"</A>
                 <A attr:class="example" href="/naive">"Naive "<code>"<script>"</code>
                     <small>"truly naive to start off"</small></A>
                 <A attr:class="example" href="/naive-alt">"Leptos "<code>"<Script>"</code>
@@ -49,8 +49,10 @@ pub fn App() -> impl IntoView {
                     <small>"... correcting placement"</small></A>
                 <A attr:class="example" href="/naive-fallback">"Leptos "<code>"<Script>"</code>
                     <small>"... with fallback"</small></A>
-                <A attr:class="example section" href="/custom-event">"Hydrated Event"
-                    <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code>" in Rust"</small></A>
+                <A attr:class="example" href="/signal-effect-script">"Leptos Signal + Effect"
+                    <small>"an idiomatic Leptos solution"</small></A>
+                <A attr:class="subexample section" href="/custom-event">"Hydrated Event"
+                    <small>"using "<code>"js_sys"</code>"/"<code>"web_sys"</code></small></A>
                 <A attr:class="example" href="/wasm-bindgen-naive">"Using "<code>"wasm-bindgen"</code>
                     <small>"naively to start with"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-event">"Using "<code>"wasm-bindgen"</code>
@@ -59,14 +61,16 @@ pub fn App() -> impl IntoView {
                     <small>"lazily delay DOM manipulation"</small></A>
                 <A attr:class="example" href="/wasm-bindgen-direct">"Using "<code>"wasm-bindgen"</code>
                     <small>"without DOM manipulation"</small></A>
-                <A attr:class="example section" href="/wasm-bindgen-direct-fixed">"Using "<code>"wasm-bindgen"</code>
-                    <small>"correct above with effects"</small></A>
+                <A attr:class="example section" href="/wasm-bindgen-direct-fixed">
+                    "Using "<code>"wasm-bindgen"</code>
+                    <small>"corrected with signal + effect"</small>
+                </A>
                 <a id="reset" href="/" target="_self">"Restart/Rehydrate"
                     <small>"to make things work again"</small></a>
             </nav>
             <main>
                 <div id="notice">
-                    "The WASM application has panicked. "
+                    "The WASM application has panicked during hydration. "
                     <a href="/" target="_self">
                         "Restart the application by going home"
                     </a>"."
@@ -81,6 +85,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("naive-fallback") view=|| view! {
                             <NaiveEvent hook=true fallback=true/>
                         } ssr/>
+                        <Route path=path!("signal-effect-script") view=CodeDemoSignalEffect ssr/>
                         <Route path=path!("custom-event") view=CustomEvent ssr/>
                         <Route path=path!("wasm-bindgen-naive") view=WasmBindgenNaive ssr/>
                         <Route path=path!("wasm-bindgen-event") view=WasmBindgenJSHookReadyEvent ssr/>
@@ -100,22 +105,24 @@ fn HomePage() -> impl IntoView {
         <p>"
             This example application demonstrates a number of ways that JavaScript may be included and used
             with Leptos naively, describing and showing the shortcomings and failures associated with each of
-            them for both SSR (Server-Side Rendering) and CSR (Client-Side Rendering) with hydration.
+            them for both SSR (Server-Side Rendering) and CSR (Client-Side Rendering) with hydration, before
+            leading up to the idiomatic solutions where they work as expected.
         "</p>
         <p>"
             For the demonstrations, "<a href="https://github.com/highlightjs/highlight.js"><code>
-            "highlight.js"</code></a>" will be invoked from within this Leptos application by the ten pages
+            "highlight.js"</code></a>" will be invoked from within this Leptos application by the examples
             linked on the side bar.  Since the library to be integrated is a JavaScript library, it must be
             enabled to fully appreciate this demo, and having the browser's developer tools/console opened is
             recommended as the logs will indicate the effects and issues as they happen.
         "</p>
         <p>"
             Examples 1 to 5 are primarily JavaScript based, where the integration code is included as "<code>
-            "<script>"</code>" tags, with example 5 (final example of the group) being the only one that works
-            consistently without errors or panics.  Examples 6 to 10 uses "<code>"wasm-bindgen"</code>" to
-            call out to the JavaScript library from Rust, starting off with naive examples that mimics
-            JavaScript conventions, again with the final example of the group (example 10) being the fully
-            working version that embraces the use of Rust.
+            "<script>"</code>" tags, with example 5 (final example of the group) being the idiomatic solution
+            that runs without errors or panic during hydration, plus an additional example 5.1 showing how to
+            get hydration to dispatch an event for JavaScript libraries should that be required.  Examples 6
+            to 10 uses "<code>"wasm-bindgen"</code>" to call out to the JavaScript library from Rust, starting
+            off with naive examples that mimics JavaScript conventions, again with the final example of the
+            group (example 10) being the fully working version that embraces the use of Rust.
         "</p>
     }
 }
@@ -131,6 +138,7 @@ fn CodeDemo() -> impl IntoView {
     let code_view = move || {
         Suspend::new(async move {
             let hook = use_context::<CodeDemoHook>().map(|h| {
+                leptos::logging::log!("use context suspend JS");
                 view! {
                     <Script>{h.js_hook}</Script>
                 }
@@ -186,17 +194,18 @@ fn Naive() -> impl IntoView {
         <ol>
             <li>"
                 You may find that during the initial load of this page when first navigating to here from
-                \"Home\" (do navigate there, reload to reinitiate this application to properly replicate the
-                behavior, or simply use the Restart link at the bottom), none of the code examples below are
-                highlighted.
+                \"Introduction\" (do navigate there, reload to reinitiate this application to properly
+                replicate the behavior, or simply use the Restart link at the bottom), none of the code
+                examples below are highlighted.
             "</li>
             <li>"
-                Go forward again using the browser's navigation system the inline code block will become
-                highlighted.  The cause is due to "<code>"highlight.js"</code>" being loaded in a standard
-                "<code>"<script>"</code>" tag that is part of this component and initially it wasn't loaded
-                before the call to "<code>"hljs.highlightAll();"</code>" was made. Later, when the component
-                gets re-rendered the second time, the code is finally available to ensure one of them works
-                (while also reloading the script, which probably isn't desirable for this use case).
+                Go back and then forward again using the browser's navigation system the inline code block
+                will become highlighted.  The cause is due to "<code>"highlight.js"</code>" being loaded in a
+                standard "<code>"<script>"</code>" tag that is part of this component and initially it wasn't
+                loaded before the call to "<code>"hljs.highlightAll();"</code>" was made. Later, when the
+                component gets re-rendered the second time, the code is finally available to ensure one of
+                them works (while also reloading the script, which probably isn't desirable for this use
+                case).
             "</li>
             <li>"
                 If you have the browser reload this page, you will find that "<strong>"both"</strong>" code
@@ -416,13 +425,16 @@ Promise.all(events).then(() => {{
         <Script id="hljs-src" async_="true" src="/highlight.min.js">""</Script>
         <p>"
             So if using events fixes problems with timing issues, couldn't Leptos provide an event to signal
-            that the body is hydrated?  Actually, yes, since a typical Leptos application provide a "<code>
-            "fn hydate()"</code>" in "<code>"lib.rs"</code>", that can be modified to provide this very
-            thing, simply by providing the following after "<code>"leptos::mount::hydrate_body(App);"</code>".
+            that the body is hydrated?  Well, this problem is typically solved by having a signal in the
+            component, and then inside the "<code>"Suspend"</code>" provide an "<code>"Effect"</code>" that
+            would set the signal to "<code>"Some"</code>" string that will then mount the "<code>"<Script>"
+            </code>" onto the body.  However, if a hydrated event is desired from within JavaScript (e.g.
+            where some existing JavaScript library/framework is managing event listeners for some particular
+            reason), given that typical Leptos applications provide the "<code>"fn hydate()"</code>" (usually
+            in "<code>" lib.rs"</code>"), that can be achieved by providing the following after "<code>
+            "leptos::mount::hydrate_body(App);"</code>".
         "</p>
-        <div><pre><code class="language-rust">{format!(
-            r#"
-#[cfg(feature = "hydrate")]
+        <div><pre><code class="language-rust">{format!(r#"#[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {{
     use app::App;
@@ -470,6 +482,123 @@ pub fn hydrate() {{
             will then invoke the code highlighting function.
         "</p>
         // Leaving this last bit as a bonus page? As an exercise for the readers?
+    }
+}
+
+#[component]
+fn CodeDemoSignalEffect() -> impl IntoView {
+    // Full JS without the use of hydration event
+    // this version will unset hljs if hljs was available to throw a wrench into
+    // the works, but it should still just work.
+    let render_call = r#"
+if (window.hljs) {
+    hljs.highlightAll();
+    console.log('unloading hljs to try to force the need for addEventListener for next time');
+    window['hljs'] = undefined;
+} else {
+    document.querySelector('#hljs-src')
+        .addEventListener('load', (e) => {
+            hljs.highlightAll();
+            console.log('using hljs inside addEventListener; leaving hljs loaded');
+        }, false);
+};"#;
+    let code = Resource::new(|| (), |_| fetch_code());
+    let (script, set_script) = signal(None::<String>);
+    let code_view = move || {
+        Suspend::new(async move {
+            Effect::new(move |_| {
+                set_script.set(Some(render_call.to_string()));
+            });
+            view! {
+                <pre><code class="language-rust">{code.await}</code></pre>
+                {
+                    move || script.get().map(|script| {
+                        view! { <Script>{script}</Script> }
+                    })
+                }
+            }
+        })
+    };
+    view! {
+        <Script id="hljs-src" async_="true" src="/highlight.min.js">""</Script>
+        <h2>"Using signal + effect to dynamically set "<code>"<Script>"</code>" tag as view is mounted"</h2>
+        <p>"Explanation on what is being demonstrated follows after the following code example table."</p>
+        <div id="code-demo">
+            <table>
+                <thead>
+                    <tr>
+                        <th>"Inline code block (part of this component)"</th>
+                        <th>"Dynamic code block (loaded via server fn)"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><pre><code class="language-rust">{CH03_05A}</code></pre></td>
+                        <td>
+                            <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>
+                                {code_view}
+                            </Suspense>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p>"
+            To properly ensure the "<code>"<Script>"</code>" tag containing the initialization code for the
+            target JavaScript usage is executed after the "<code>"Suspend"</code>"ed view is fully rendered
+            and mounted onto the DOM, with the use of an effect that sets a signal to trigger the rendering
+            inside the suspend will achieve exactly that.  That was a mouthful, so let's look at the code
+            for that then:
+        "</p>
+        <div><pre><code class="language-rust">r##"#[component]
+fn CodeDemoSignalEffect() -> impl IntoView {
+    let render_call = r#"
+if (window.hljs) {
+    hljs.highlightAll();
+} else {
+    document.querySelector('#hljs-src')
+        .addEventListener('load', (e) => { hljs.highlightAll() }, false);
+};"#;
+    let code = Resource::new(|| (), |_| fetch_code());
+    let (script, set_script) = signal(None::<String>);
+    let code_view = move || {
+        Suspend::new(async move {
+            Effect::new(move |_| {
+                set_script.set(Some(render_call.to_string()));
+            });
+            view! {
+                <pre><code class="language-rust">{code.await}</code></pre>
+                {
+                    move || script.get().map(|script| {
+                        view! { <Script>{script}</Script> }
+                    })
+                }
+            }
+        })
+    };
+    view! {
+        <Script id="hljs-src" async_="true" src="/highlight.min.js">""</Script>
+        <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>
+            {code_view}
+        </Suspense>
+    }
+}"##</code></pre></div>
+        <p>"
+            The "<code>"Suspend"</code>" ensures the asynchronous "<code>"Resource"</code>" will be completed
+            before the view is returned, which will be mounted onto the DOM, but the initial value of the
+            signal "<code>"script"</code>" will be "<code>"None"</code>", so no "<code>"<Script>"</code>" tag
+            will be rendered at that stage.  Only after the suspended view is mounted onto the DOM the "<code>
+            "Effect"</code>" will run, which will call "<code>"set_script"</code>" with "<code>"Some"</code>"
+            value which will finally populate the "<code>"<Script>"</code>" tag with the desired JavaScript to
+            be executed, in this case invoke the code highlighting feature if available otherwise wait for it.
+        "</p>
+        <p>"
+            If there are multiple "<code>"Suspense"</code>", it will be a matter of adding the event to be
+            dispatched to "<code>"set_script.set"</code>" so that it gets dispatched for the component, and
+            then elsewhere above all those components a JavaScript list will tracking all the events will be
+            waited on by "<code>"Promise.all"</code>", where its completion will finally invoke the desired
+            JavaScript function.
+        "</p>
     }
 }
 
@@ -956,12 +1085,13 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
     provide_context(InnerEffect);
 
     view! {
-        <h2>"Corrected example using effects."</h2>
+        <h2>"Corrected example using signal + effect (again)."</h2>
         <CodeDemoWasmInner/>
         <p>"
             Since the previous example didn't quite get everything working due to the component here providing
-            different content between SSR and CSR, using client side effects can opt-in the difference to
-            overwrite the SSR rendering when hydration is complete.  The improved version of the code
+            different content between SSR and CSR, using client side signal and effect can opt-in the
+            difference to overwrite the SSR rendering when hydration is complete.  This is pretty much the
+            identical approach as example 5 as it is the idiomatic solution.  The improved version of the code
             rendering component from the previous example may look something like the following:
         "</p>
         <CodeInner code lang/>
