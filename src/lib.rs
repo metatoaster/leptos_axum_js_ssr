@@ -15,12 +15,16 @@ pub fn hydrate() {
         // a restart of the application is required to continue.
         console_error_panic_hook::hook(info);
         let document = leptos::prelude::document();
-        let _ = document.query_selector("#reset").map(|el| el.map(|el| {
-            el.set_class_name("panicked");
-        }));
-        let _ = document.query_selector("#notice").map(|el| el.map(|el| {
-            el.set_class_name("panicked");
-        }));
+        let _ = document.query_selector("#reset").map(|el| {
+            el.map(|el| {
+                el.set_class_name("panicked");
+            })
+        });
+        let _ = document.query_selector("#notice").map(|el| {
+            el.map(|el| {
+                el.set_class_name("panicked");
+            })
+        });
     }));
     leptos::mount::hydrate_body(App);
 

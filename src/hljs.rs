@@ -1,15 +1,23 @@
 #[cfg(not(feature = "ssr"))]
 mod csr {
-    use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-    use js_sys::{Object, Reflect::{get, set}};
     use gloo_utils::format::JsValueSerdeExt;
+    use js_sys::{
+        Object,
+        Reflect::{get, set},
+    };
+    use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
-    #[wasm_bindgen(module = "/node_modules/@highlightjs/cdn-assets/es/highlight.min.js")]
+    #[wasm_bindgen(
+        module = "/node_modules/@highlightjs/cdn-assets/es/highlight.min.js"
+    )]
     extern "C" {
         type HighlightOptions;
 
         #[wasm_bindgen(catch, js_namespace = default, js_name = highlight)]
-        fn highlight_lang(code: String, options: Object) -> Result<Object, JsValue>;
+        fn highlight_lang(
+            code: String,
+            options: Object,
+        ) -> Result<Object, JsValue>;
 
         #[wasm_bindgen(js_namespace = default, js_name = highlightAll)]
         pub fn highlight_all();
@@ -27,8 +35,7 @@ mod csr {
             .map(|result| {
                 let value = get(&result, &"value".into())
                     .expect("HighlightResult failed to contain the value key");
-                value.into_serde()
-                    .expect("Value should have been a string")
+                value.into_serde().expect("Value should have been a string")
             })
             .ok()
     }
@@ -37,8 +44,7 @@ mod csr {
 #[cfg(feature = "ssr")]
 mod ssr {
     // noop under ssr
-    pub fn highlight_all() {
-    }
+    pub fn highlight_all() {}
 
     // TODO see if there is a Rust-based solution that will enable isomorphic rendering for this feature.
     // the current (disabled) implementation simply calls html_escape.

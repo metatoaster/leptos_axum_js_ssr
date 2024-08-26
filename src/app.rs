@@ -1,4 +1,7 @@
-use crate::{api::fetch_code, consts::{CH03_05A, LEPTOS_HYDRATED}};
+use crate::{
+    api::fetch_code,
+    consts::{CH03_05A, LEPTOS_HYDRATED},
+};
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, *};
 use leptos_router::{
@@ -271,7 +274,9 @@ if (window.hljs) {
 }";
     let js_hook = if fallback { render_call } else { render_hook };
     let explanation = if hook {
-        provide_context(CodeDemoHook { js_hook: js_hook.to_string() });
+        provide_context(CodeDemoHook {
+            js_hook: js_hook.to_string(),
+        });
         if fallback {
             view! {
                 <ol>
@@ -380,23 +385,30 @@ if (window.hljs) {
 
 #[component]
 fn CustomEvent() -> impl IntoView {
-    let js_hook = format!("\
+    let js_hook = format!(
+        "\
 var events = [];
 if (!window.hljs) {{
     console.log('pushing listener for hljs load');
     events.push(new Promise((r) =>
-        document.querySelector('#hljs-src').addEventListener('load', r, false)));
+        document.querySelector('#hljs-src').addEventListener('load', r, \
+         false)));
 }}
 if (!window.{LEPTOS_HYDRATED}) {{
     console.log('pushing listener for leptos hydration');
-    events.push(new Promise((r) => document.addEventListener('{LEPTOS_HYDRATED}', r, false)));
+    events.push(new Promise((r) => \
+         document.addEventListener('{LEPTOS_HYDRATED}', r, false)));
 }}
 Promise.all(events).then(() => {{
-    console.log(`${{events.length}} events have been dispatched; now calling highlightAll()`);
+    console.log(`${{events.length}} events have been dispatched; now calling \
+         highlightAll()`);
     hljs.highlightAll();
 }});
-");
-    provide_context(CodeDemoHook { js_hook: js_hook.clone() });
+"
+    );
+    provide_context(CodeDemoHook {
+        js_hook: js_hook.clone(),
+    });
     // FIXME Seems like <Script> require a text node, otherwise hydration error from marker mismatch
     view! {
         <h2>"Have Leptos dispatch an event when body is hydrated"</h2>
@@ -774,40 +786,49 @@ fn WasmBindgenEffect() -> impl IntoView {
 #[derive(Clone)]
 struct InnerEffect;
 
-#[allow(unused_variables)]  // lang is unused for SSR
 #[component]
 fn CodeInner(code: String, lang: String) -> impl IntoView {
+    // lang is currently unused for SSR, so just drop it now to use it to avoid warning.
+    #[cfg(feature = "ssr")]
+    drop(lang);
     if use_context::<InnerEffect>().is_none() {
         #[cfg(feature = "ssr")]
         let inner = Some(html_escape::encode_text(&code).into_owned());
         #[cfg(not(feature = "ssr"))]
         let inner = {
             let inner = crate::hljs::highlight(code, lang);
-            leptos::logging::log!("about to populate inner_html with: {inner:?}");
+            leptos::logging::log!(
+                "about to populate inner_html with: {inner:?}"
+            );
             inner
         };
         view! {
             <pre><code inner_html=inner></code></pre>
-        }.into_any()
+        }
+        .into_any()
     } else {
         let (inner, set_inner) = signal(String::new());
         #[cfg(feature = "ssr")]
         {
-            let result = Some(html_escape::encode_text(&code).into_owned());
-            result.map(|r| set_inner.set(r));
+            set_inner.set(html_escape::encode_text(&code).into_owned());
         };
         #[cfg(not(feature = "ssr"))]
         {
             leptos::logging::log!("calling out to hljs::highlight");
             let result = crate::hljs::highlight(code, lang);
             Effect::new(move |_| {
-                leptos::logging::log!("setting the result of hljs::highlight inside an effect");
-                result.clone().map(|r| set_inner.set(r));
+                leptos::logging::log!(
+                    "setting the result of hljs::highlight inside an effect"
+                );
+                if let Some(r) = result.clone() {
+                    set_inner.set(r)
+                }
             });
         };
         view! {
             <pre><code inner_html=inner></code></pre>
-        }.into_any()
+        }
+        .into_any()
     }
 }
 
@@ -816,8 +837,10 @@ fn CodeDemoWasmInner() -> impl IntoView {
     let code = Resource::new(|| (), |_| fetch_code());
     let code_view = move || {
         Suspend::new(async move {
-            code.await.map(|code| view! {
-                <CodeInner code=code lang="rust".to_string()/>
+            code.await.map(|code| {
+                view! {
+                    <CodeInner code=code lang="rust".to_string()/>
+                }
             })
         })
     };
@@ -865,7 +888,8 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
 
 // Simply use the above component in a view like so:
 //
-// view! { <CodeInner code lang/> }"#.to_string();
+// view! { <CodeInner code lang/> }"#
+        .to_string();
     let lang = "rust".to_string();
 
     view! {
@@ -920,13 +944,14 @@ fn CodeInner(code: String, lang: String) -> impl IntoView {
     {
         let result = crate::hljs::highlight(code, lang);
         Effect::new(move |_| {
-            result.clone().map(|r| set_inner.set(r));
+            if let Some(r) = result.clone() { set_inner.set(r) }
         });
     }
     view! {
         <pre><code inner_html=inner></code></pre>
     }
-}"#.to_string();
+}"#
+    .to_string();
     let lang = "rust".to_string();
     provide_context(InnerEffect);
 

@@ -15,10 +15,14 @@ async fn main() {
     use axum::{
         body::Body,
         extract::Request,
-        http::{header::{self, HeaderValue}, StatusCode},
+        http::{
+            header::{self, HeaderValue},
+            StatusCode,
+        },
         middleware::{self, Next},
         response::{IntoResponse, Response},
-        routing::get, Router,
+        routing::get,
+        Router,
     };
     use axum_js_ssr::app::*;
     use http_body_util::BodyExt;
@@ -43,49 +47,60 @@ async fn main() {
     async fn highlight_js() -> impl IntoResponse {
         (
             [(header::CONTENT_TYPE, "text/javascript")],
-            include_str!("../node_modules/@highlightjs/cdn-assets/highlight.min.js"),
+            include_str!(
+                "../node_modules/@highlightjs/cdn-assets/highlight.min.js"
+            ),
         )
     }
 
     async fn latency_for_highlight_js(
-	req: Request,
-	next: Next,
+        req: Request,
+        next: Next,
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
-        let uri_parts = &mut req
-            .uri()
-            .path()
-            .rsplit('/');
+        let uri_parts = &mut req.uri().path().rsplit('/');
 
         let is_highlightjs = uri_parts.next() == Some("highlight.min.js");
         let es = uri_parts.next() == Some("es");
         let module_type = if es { "es module " } else { "standard " };
-	let res = next.run(req).await;
+        let res = next.run(req).await;
         if is_highlightjs {
             // additional processing if the filename is the test subject
             let (mut parts, body) = res.into_parts();
             let bytes = body
                 .collect()
                 .await
-                .map_err(|err| (
-                    StatusCode::BAD_REQUEST,
-                    format!("error reading body: {err}"),
-                ))?
+                .map_err(|err| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("error reading body: {err}"),
+                    )
+                })?
                 .to_bytes();
-            let latency = if es { &latency::ES_LATENCY } else { &latency::LATENCY };
+            let latency = if es {
+                &latency::ES_LATENCY
+            } else {
+                &latency::LATENCY
+            };
 
             let delay = match latency
                 .get()
                 .expect("latency cycle wasn't set up")
                 .try_lock()
             {
-                Ok(ref mut mutex) => *mutex.next().expect("cycle always has next"),
+                Ok(ref mut mutex) => {
+                    *mutex.next().expect("cycle always has next")
+                }
                 Err(_) => 0,
             };
 
             // inject the logging of the delay used into the target script
-            log!("loading {module_type}highlight.min.js with latency of {delay} ms");
+            log!(
+                "loading {module_type}highlight.min.js with latency of \
+                 {delay} ms"
+            );
             let js_log = format!(
-                "\nconsole.log('loaded {module_type}highlight.js with a minimum latency of {delay} ms');"
+                "\nconsole.log('loaded {module_type}highlight.js with a \
+                 minimum latency of {delay} ms');"
             );
             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
 
@@ -94,10 +109,16 @@ async fn main() {
             let body = Body::from(bytes);
 
             // Provide the bare minimum set of headers to avoid browser cache.
-            parts.headers = header::HeaderMap::from_iter([
-                (header::CONTENT_TYPE, HeaderValue::from_static("text/javascript")),
-                (header::CONTENT_LENGTH, HeaderValue::from(length)),
-            ].into_iter());
+            parts.headers = header::HeaderMap::from_iter(
+                [
+                    (
+                        header::CONTENT_TYPE,
+                        HeaderValue::from_static("text/javascript"),
+                    ),
+                    (header::CONTENT_LENGTH, HeaderValue::from(length)),
+                ]
+                .into_iter(),
+            );
             Ok(Response::from_parts(parts, body))
         } else {
             Ok(res)
