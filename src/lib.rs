@@ -17,7 +17,7 @@ pub fn hydrate() {
         let window = leptos::prelude::window();
         if !matches!(
             js_sys::Reflect::get(&window, &wasm_bindgen::JsValue::from_str(LEPTOS_HYDRATED)),
-            Ok(t) if t == wasm_bindgen::JsValue::from(true)
+            Ok(t) if t == true
         ) {
             let document = leptos::prelude::document();
             let _ = document.query_selector("#reset").map(|el| {

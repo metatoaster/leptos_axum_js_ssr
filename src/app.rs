@@ -616,7 +616,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
             <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
                 move || Suspend::new(async move {
                     view! {
-                        <pre><code>{code.await}</code></pre>
+                        <pre><code class="language-rust">{code.await}</code></pre>
                         {
                             #[cfg(not(feature = "ssr"))]
                             {
@@ -633,7 +633,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
             <Suspense fallback=move || view! { <p>"Loading code example..."</p> }>{
                 move || Suspend::new(async move {
                     view! {
-                        <pre><code>{code.await}</code></pre>
+                        <pre><code class="language-rust">{code.await}</code></pre>
                         {
                             #[cfg(not(feature = "ssr"))]
                             {
@@ -702,7 +702,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                         });
                     });
                     view! {
-                        <pre><code>{code.await}</code></pre>
+                        <pre><code class="language-rust">{code.await}</code></pre>
                     }
                 })
             }</Suspense>
@@ -726,7 +726,7 @@ fn CodeDemoWasm(mode: WasmDemo) -> impl IntoView {
                 </thead>
                 <tbody>
                     <tr>
-                        <td><pre><code>{CH03_05A}</code></pre></td>
+                        <td><pre><code class="language-rust">{CH03_05A}</code></pre></td>
                         <td>{suspense_choice}</td>
                     </tr>
                 </tbody>
